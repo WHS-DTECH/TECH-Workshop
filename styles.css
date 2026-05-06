@@ -51,6 +51,7 @@ body {
   font-size: 1.5rem;
   color: #ecf6ff;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .main-nav {
