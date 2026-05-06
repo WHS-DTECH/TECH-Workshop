@@ -256,6 +256,19 @@ function renderLibrary() {
 }
 
 // ── Google Auth ────────────────────────────────────────────────────────────
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
+}
+
+function getPrimaryRole(roles) {
+  const priority = ['Admin', 'Lead Teacher', 'Teacher', 'Technician', 'Manager', 'Staff', 'Student'];
+  for (const p of priority) {
+    if (roles.some(r => r.role === p)) return p;
+  }
+  return 'Member';
+}
+
 fetch('/api/user')
   .then(res => res.json())
   .then(async user => {
@@ -263,19 +276,18 @@ fetch('/api/user')
       document.getElementById('googleSignIn').style.display = 'none';
       const chip = document.getElementById('userChip');
       chip.style.display = 'inline-flex';
-      document.getElementById('userName').textContent = user.name;
-      if (user.picture) {
-        document.getElementById('userAvatar').src = user.picture;
-        document.getElementById('userAvatar').alt = user.name;
-      }
-      // Show admin menu if user has Admin role
+      document.getElementById('userInitials').textContent = getInitials(user.name);
+      // Fetch roles and show highest role
       try {
         const rolesRes = await fetch('/api/my-roles');
         const roles = await rolesRes.json();
+        document.getElementById('userRoleBadge').textContent = getPrimaryRole(roles);
         if (roles.some(r => r.role === 'Admin')) {
           document.getElementById('adminMenu').style.display = 'flex';
         }
-      } catch {}
+      } catch {
+        document.getElementById('userRoleBadge').textContent = 'Member';
+      }
     }
   })
   .catch(() => {}); // static fallback — no server running locally

@@ -11,25 +11,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
+}
+
+function getPrimaryRole(roles) {
+  const priority = ['Admin', 'Lead Teacher', 'Teacher', 'Technician', 'Manager', 'Staff', 'Student'];
+  for (const p of priority) {
+    if (roles.some(r => r.role === p)) return p;
+  }
+  return 'Member';
+}
+
 fetch('/api/user')
   .then(res => res.json())
   .then(async user => {
     // Update nav chip
     const signInBtn = document.getElementById('googleSignIn');
     const chip = document.getElementById('userChip');
-    const navAvatar = document.getElementById('userAvatar');
-    const navName = document.getElementById('userName');
 
     if (user) {
       if (signInBtn) signInBtn.style.display = 'none';
       if (chip) chip.style.display = 'inline-flex';
-      if (navAvatar) { navAvatar.src = user.picture || ''; navAvatar.alt = user.name; }
-      if (navName) navName.textContent = user.name;
 
-      // Show admin menu if user has Admin role
+      const initialsEl = document.getElementById('userInitials');
+      if (initialsEl) initialsEl.textContent = getInitials(user.name);
+
+      // Fetch roles for nav chip + admin menu
+      let roles = [];
       try {
         const rolesRes = await fetch('/api/my-roles');
-        const roles = await rolesRes.json();
+        roles = await rolesRes.json();
+        const roleEl = document.getElementById('userRoleBadge');
+        if (roleEl) roleEl.textContent = getPrimaryRole(roles);
         if (roles.some(r => r.role === 'Admin')) {
           const adminMenu = document.getElementById('adminMenu');
           if (adminMenu) adminMenu.style.display = 'flex';

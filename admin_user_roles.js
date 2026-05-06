@@ -130,19 +130,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Init ────────────────────────────────────────────────────────
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
+}
+function getPrimaryRole(roles) {
+  const priority = ['Admin', 'Lead Teacher', 'Teacher', 'Technician', 'Manager', 'Staff', 'Student'];
+  for (const p of priority) { if (roles.some(r => r.role === p)) return p; }
+  return 'Member';
+}
+
 fetch('/api/user')
       const signInBtn = document.getElementById('googleSignIn');
       const chip = document.getElementById('userChip');
       if (signInBtn) signInBtn.style.display = 'none';
       if (chip) chip.style.display = 'inline-flex';
-      const navAvatar = document.getElementById('userAvatar');
-      const navName = document.getElementById('userName');
-      if (navAvatar) { navAvatar.src = user.picture || ''; navAvatar.alt = user.name; }
-      if (navName) navName.textContent = user.name;
+      const initialsEl = document.getElementById('userInitials');
+      if (initialsEl) initialsEl.textContent = getInitials(user.name);
 
       // Check admin role
       const rolesRes = await fetch('/api/my-roles');
       const roles = await rolesRes.json();
+      const roleEl = document.getElementById('userRoleBadge');
+      if (roleEl) roleEl.textContent = getPrimaryRole(roles);
       const isAdmin = roles.some(r => r.role === 'Admin');
 
       if (isAdmin) {

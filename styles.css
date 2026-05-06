@@ -174,16 +174,28 @@ body {
   border-radius: 999px;
   padding: 3px 10px 3px 4px;
 }
-.user-avatar {
-  width: 24px;
-  height: 24px;
+
+.chip-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  object-fit: cover;
+  background: rgba(255,255,255,0.9);
+  color: #1c74b9;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
-#userName {
+
+.chip-role {
   color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .logout-link {
   color: rgba(255,255,255,0.75);
