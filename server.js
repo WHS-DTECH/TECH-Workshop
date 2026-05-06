@@ -8,6 +8,17 @@ const pgSession = require('connect-pg-simple')(session);
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const nodemailer = require('nodemailer');
+
+// Nodemailer transporter — uses EMAIL_USER + EMAIL_PASS from .env
+// Set EMAIL_USER to your Gmail address and EMAIL_PASS to a Gmail App Password
+const mailer = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 // Multer — memory storage (keeps PDF in RAM, stores in DB as buffer)
 const upload = multer({
@@ -387,11 +398,65 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
     }
     const pdfData = req.file ? req.file.buffer : null;
     const pdfFilename = req.file ? req.file.originalname : null;
-    await pool.query(
+    const insertResult = await pool.query(
       `INSERT INTO activity_suggestions (submitter_name, submitter_email, activity_name, activity_url, reason, pdf_data, pdf_filename)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, submitted_at`,
       [name.trim(), email.trim(), activity_name.trim(), activity_url?.trim() || null, reason?.trim() || null, pdfData, pdfFilename]
     );
+
+    // Send notification email to all Admins and Lead Teachers
+    try {
+      const adminRes = await pool.query(
+        `SELECT DISTINCT u.email, u.name FROM users u
+         JOIN user_roles ur ON ur.user_id = u.id
+         WHERE ur.role IN ('Admin', 'Lead Teacher') AND u.email IS NOT NULL`
+      );
+      if (adminRes.rows.length && process.env.EMAIL_USER) {
+        const toList = adminRes.rows.map(r => r.email).join(', ');
+        const submittedAt = insertResult.rows[0].submitted_at;
+        const dateStr = new Date(submittedAt).toISOString().slice(0, 10);
+        const siteUrl = process.env.SITE_URL || 'https://tech-wworkshop.onrender.com';
+        const urlCell = activity_url?.trim() ? activity_url.trim() : 'N/A';
+
+        const htmlBody = `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:#1c74b9;padding:22px 28px;border-radius:8px 8px 0 0">
+    <p style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px">WORKSHOP</p>
+    <h2 style="color:#fff;margin:0;font-size:22px">New Activity Suggestion</h2>
+  </div>
+  <div style="background:#f8fbff;padding:24px 28px;border:1px solid #d6e4f0;border-top:none;border-radius:0 0 8px 8px">
+    <p style="color:#444;margin:0 0 18px">A new suggestion has been submitted for review.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff;width:130px">Date</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${dateStr}</td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Activity</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${activity_name.trim()}</td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">Suggested By</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${name.trim()}</td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Email</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff"><a href="mailto:${email.trim()}" style="color:#1c74b9">${email.trim()}</a></td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">URL</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${urlCell}</td></tr>
+      ${pdfFilename ? `<tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">PDF</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${pdfFilename} <em style="color:#888">(download from Suggestions page)</em></td></tr>` : ''}
+    </table>
+    ${reason?.trim() ? `
+    <p style="font-weight:700;color:#1a2a3a;margin:18px 0 6px">Reason</p>
+    <div style="background:#fff;border:1px solid #e0e8f0;border-radius:6px;padding:12px 14px;color:#444;font-size:14px">${reason.trim()}</div>` : ''}
+    <div style="margin-top:24px">
+      <a href="${siteUrl}/admin_suggestions.html" style="display:inline-block;background:#1c74b9;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:700;font-size:14px">Open Suggestions List</a>
+    </div>
+    <p style="margin:14px 0 0;font-size:12px;color:#888">Direct link: <a href="${siteUrl}/admin_suggestions.html" style="color:#1c74b9">${siteUrl}/admin_suggestions.html</a></p>
+  </div>
+</div>`;
+
+        await mailer.sendMail({
+          from: `"Workshop Hub" <${process.env.EMAIL_USER}>`,
+          to: toList,
+          subject: `[Activity Suggestion] ${activity_name.trim()}`,
+          html: htmlBody,
+          attachments: pdfData ? [{ filename: pdfFilename, content: pdfData }] : []
+        });
+      }
+    } catch (emailErr) {
+      // Don't fail the request if email fails — just log it
+      console.error('Email notification failed:', emailErr.message);
+    }
+
     res.json({ success: true });
   } catch (e) {
     console.error('Suggestion error:', e);
