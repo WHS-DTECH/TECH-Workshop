@@ -39,6 +39,18 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_roles (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      role VARCHAR(100) NOT NULL,
+      user_type VARCHAR(50) DEFAULT 'Staff',
+      assigned_by INTEGER REFERENCES users(id),
+      assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, role)
+    );
+  `);
+
   console.log('Database tables ready.');
 }
 
@@ -109,6 +121,21 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Not authenticated' });
 }
 
+// Admin middleware — only users with 'Admin' role
+async function requireAdmin(req, res, next) {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const result = await pool.query(
+      "SELECT 1 FROM user_roles WHERE user_id = $1 AND role = 'Admin'",
+      [req.user.id]
+    );
+    if (result.rows.length > 0) return next();
+    return res.status(403).json({ error: 'Admin access required' });
+  } catch (e) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 // Start Google login
@@ -142,6 +169,93 @@ app.get('/api/user', (req, res) => {
 // Protected example route
 app.get('/api/protected', requireAuth, (req, res) => {
   res.json({ message: `Welcome, ${req.user.name}!` });
+});
+
+// ─── Admin: Role Management ──────────────────────────────────────────────────
+
+// GET all users with their roles
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.name, u.email, u.created_at,
+        COALESCE(
+          json_agg(json_build_object('role', ur.role, 'user_type', ur.user_type, 'id', ur.id))
+          FILTER (WHERE ur.id IS NOT NULL), '[]'
+        ) AS roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      GROUP BY u.id
+      ORDER BY u.name
+    `);
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET users that have at least one additional role
+app.get('/api/admin/users-with-roles', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.name, u.email,
+        json_agg(json_build_object('id', ur.id, 'role', ur.role, 'user_type', ur.user_type)) AS roles
+      FROM user_roles ur
+      JOIN users u ON u.id = ur.user_id
+      GROUP BY u.id
+      ORDER BY u.name
+    `);
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST add a role to a user
+app.post('/api/admin/user-roles', requireAdmin, async (req, res) => {
+  const { user_id, role, user_type } = req.body;
+  if (!user_id || !role) return res.status(400).json({ error: 'user_id and role required' });
+  try {
+    await pool.query(
+      'INSERT INTO user_roles (user_id, role, user_type, assigned_by) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, role) DO NOTHING',
+      [user_id, role, user_type || 'Staff', req.user.id]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE remove all additional roles from a user
+app.delete('/api/admin/user-roles/:userId', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1', [req.params.userId]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE remove a single role from a user
+app.delete('/api/admin/user-roles/:userId/:roleId', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1 AND id = $2', [req.params.userId, req.params.roleId]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET current user's roles
+app.get('/api/my-roles', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT role, user_type FROM user_roles WHERE user_id = $1',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Serve the main site
