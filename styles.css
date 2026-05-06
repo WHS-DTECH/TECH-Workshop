@@ -71,6 +71,58 @@ body {
   text-decoration: underline;
 }
 
+/* ── Admin Dropdown Menu ───────────────────────────────────────────────── */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-btn {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  color: #e7f4ff;
+  font-family: inherit;
+  font-size: 0.77rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.nav-dropdown-btn:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+.nav-dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #ccddef;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(7,41,66,0.18);
+  min-width: 190px;
+  z-index: 999;
+  overflow: hidden;
+}
+
+.nav-dropdown-panel a {
+  display: block;
+  padding: 10px 16px;
+  color: var(--ink) !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none !important;
+  border-bottom: 1px solid #eaf1f8;
+  transition: background .12s;
+}
+
+.nav-dropdown-panel a:last-child { border-bottom: none; }
+.nav-dropdown-panel a:hover { background: #edf4fb; color: var(--accent) !important; }
+
+.nav-dropdown.open .nav-dropdown-panel { display: block; }
+
 .profile-actions {
   margin-left: auto;
   display: flex;

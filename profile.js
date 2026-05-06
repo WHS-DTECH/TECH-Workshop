@@ -1,7 +1,19 @@
 // ── Profile Page JS ────────────────────────────────────────────────────────
+
+// Admin dropdown toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const dropdown = document.getElementById('adminMenu');
+  if (!dropdown) return;
+  const btn = dropdown.querySelector('.nav-dropdown-btn');
+  if (btn) {
+    btn.addEventListener('click', e => { e.stopPropagation(); dropdown.classList.toggle('open'); });
+    document.addEventListener('click', () => dropdown.classList.remove('open'));
+  }
+});
+
 fetch('/api/user')
   .then(res => res.json())
-  .then(user => {
+  .then(async user => {
     // Update nav chip
     const signInBtn = document.getElementById('googleSignIn');
     const chip = document.getElementById('userChip');
@@ -13,6 +25,16 @@ fetch('/api/user')
       if (chip) chip.style.display = 'inline-flex';
       if (navAvatar) { navAvatar.src = user.picture || ''; navAvatar.alt = user.name; }
       if (navName) navName.textContent = user.name;
+
+      // Show admin menu if user has Admin role
+      try {
+        const rolesRes = await fetch('/api/my-roles');
+        const roles = await rolesRes.json();
+        if (roles.some(r => r.role === 'Admin')) {
+          const adminMenu = document.getElementById('adminMenu');
+          if (adminMenu) adminMenu.style.display = 'flex';
+        }
+      } catch {}
 
       // Show profile content
       document.getElementById('profileContent').style.display = 'block';

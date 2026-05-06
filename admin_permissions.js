@@ -117,11 +117,19 @@ document.getElementById('resetBtn').addEventListener('click', async () => {
   }
 });
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// Admin dropdown toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const dropdown = document.getElementById('adminMenu');
+  if (!dropdown) return;
+  const btn = dropdown.querySelector('.nav-dropdown-btn');
+  if (btn) {
+    btn.addEventListener('click', e => { e.stopPropagation(); dropdown.classList.toggle('open'); });
+    document.addEventListener('click', () => dropdown.classList.remove('open'));
+  }
+});
+
+// ── Init ────────────────────────────────────────────────────────
 fetch('/api/user')
-  .then(res => res.json())
-  .then(async user => {
-    if (user) {
       const signInBtn = document.getElementById('googleSignIn');
       const chip = document.getElementById('userChip');
       if (signInBtn) signInBtn.style.display = 'none';
@@ -137,6 +145,8 @@ fetch('/api/user')
 
       if (isAdmin) {
         document.getElementById('adminContent').style.display = 'block';
+        const adminMenu = document.getElementById('adminMenu');
+        if (adminMenu) adminMenu.style.display = 'flex';
         loadPermissions();
       } else {
         document.getElementById('accessDenied').style.display = 'block';
