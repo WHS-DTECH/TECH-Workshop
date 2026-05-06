@@ -51,6 +51,42 @@ async function initDB() {
     );
   `);
 
+  // Role permissions table — which pages each role can access
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id SERIAL PRIMARY KEY,
+      role VARCHAR(100) NOT NULL,
+      page VARCHAR(100) NOT NULL,
+      allowed BOOLEAN DEFAULT true,
+      UNIQUE(role, page)
+    );
+  `);
+
+  // Seed default permissions if none exist
+  const existing = await pool.query('SELECT COUNT(*) FROM role_permissions');
+  if (parseInt(existing.rows[0].count) === 0) {
+    const defaults = [
+      // [role, homepage, add_projects, view_projects, planning, admin]
+      ['Admin',         true,  true,  true,  true,  true ],
+      ['Lead Teacher',  true,  true,  true,  true,  false],
+      ['Teacher',       true,  false, true,  true,  false],
+      ['Technician',    true,  false, true,  false, false],
+      ['Staff',         true,  false, true,  false, false],
+      ['Student',       true,  false, true,  false, false],
+      ['Public Access', true,  false, false, false, false],
+    ];
+    const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
+    for (const [role, ...perms] of defaults) {
+      for (let i = 0; i < pages.length; i++) {
+        await pool.query(
+          'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [role, pages[i], perms[i]]
+        );
+      }
+    }
+    console.log('Default permissions seeded.');
+  }
+
   console.log('Database tables ready.');
 }
 
@@ -253,6 +289,64 @@ app.get('/api/my-roles', requireAuth, async (req, res) => {
       [req.user.id]
     );
     res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Admin: Role Permissions ──────────────────────────────────────────────
+
+// GET all role permissions
+app.get('/api/admin/permissions', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT role, page, allowed FROM role_permissions ORDER BY role, page');
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST save all permissions (full replace)
+app.post('/api/admin/permissions', requireAdmin, async (req, res) => {
+  const { permissions } = req.body; // [{ role, page, allowed }]
+  if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions array required' });
+  try {
+    for (const p of permissions) {
+      await pool.query(
+        `INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)
+         ON CONFLICT (role, page) DO UPDATE SET allowed = EXCLUDED.allowed`,
+        [p.role, p.page, p.allowed]
+      );
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST reset permissions to defaults
+app.post('/api/admin/permissions/reset', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM role_permissions');
+    const defaults = [
+      ['Admin',         true,  true,  true,  true,  true ],
+      ['Lead Teacher',  true,  true,  true,  true,  false],
+      ['Teacher',       true,  false, true,  true,  false],
+      ['Technician',    true,  false, true,  false, false],
+      ['Staff',         true,  false, true,  false, false],
+      ['Student',       true,  false, true,  false, false],
+      ['Public Access', true,  false, false, false, false],
+    ];
+    const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
+    for (const [role, ...perms] of defaults) {
+      for (let i = 0; i < pages.length; i++) {
+        await pool.query(
+          'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
+          [role, pages[i], perms[i]]
+        );
+      }
+    }
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

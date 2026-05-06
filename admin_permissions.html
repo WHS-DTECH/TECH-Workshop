@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Role Permissions – Workshop</title>
+  <link rel="icon" href="images/favicon.ico" sizes="any" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="top-strip">
+    <div class="top-strip-inner">
+      <div class="brand">Workshop</div>
+      <nav class="main-nav" aria-label="Primary">
+        <a href="/">Hub Home</a>
+        <a href="#">Browse Activities</a>
+        <a href="#">Project Kits</a>
+        <a href="#">Safety Docs</a>
+        <a href="#">Tool Booking</a>
+        <a href="#">Material Requests</a>
+      </nav>
+      <div class="profile-actions">
+        <button class="pill">Planning</button>
+        <button class="pill">Shopping</button>
+        <button class="pill">IT Teacher</button>
+        <button class="pill">Manager</button>
+        <div class="auth-area" id="authArea">
+          <a href="/auth/google" class="btn-google" id="googleSignIn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
+              <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5.1l-6.2-5.2C29.3 35.5 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.3 5.5l6.2 5.2C41.3 35.4 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+            </svg>
+            Sign in with Google
+          </a>
+          <div class="user-chip" id="userChip" style="display:none">
+            <a href="/profile.html" style="display:flex;align-items:center;gap:6px;text-decoration:none">
+              <img id="userAvatar" src="" alt="" class="user-avatar" />
+              <span id="userName" style="color:#fff;font-size:0.72rem;font-weight:600"></span>
+            </a>
+            <a href="/auth/logout" class="logout-link">Sign out</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-shell">
+
+    <!-- Access denied -->
+    <div id="accessDenied" class="admin-access-denied" style="display:none">
+      <div class="profile-card" style="text-align:center;padding:48px">
+        <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
+        <h2 style="margin:0 0 8px">Admin Access Required</h2>
+        <p style="color:var(--soft-ink);margin:0">You need an Admin role to view this page.</p>
+        <a href="/" class="admin-btn admin-btn-secondary" style="margin-top:20px;display:inline-block">Back to Hub</a>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div id="adminContent" style="display:none">
+
+      <div class="admin-header-row">
+        <div>
+          <h1 class="admin-title">Role Permissions Management</h1>
+          <p class="admin-subtitle">Control which pages each role can access. Check a box to grant access, uncheck to remove access.</p>
+        </div>
+        <div class="admin-header-actions">
+          <a href="/admin_user_roles.html" class="admin-btn admin-btn-secondary">← Back to Admin</a>
+        </div>
+      </div>
+
+      <div id="saveMsg" class="admin-msg" style="display:none"></div>
+
+      <!-- Permissions matrix -->
+      <div class="admin-card" style="padding:0;overflow:hidden">
+        <div class="perm-table-wrap">
+          <table class="perm-table" id="permTable">
+            <thead>
+              <tr>
+                <th class="perm-role-col">Role</th>
+                <th>Home<br>Page</th>
+                <th>Add<br>Projects</th>
+                <th>View<br>Projects</th>
+                <th>Planning</th>
+                <th>Admin</th>
+              </tr>
+            </thead>
+            <tbody id="permTableBody">
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--soft-ink)">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="perm-actions">
+          <button class="admin-btn admin-btn-primary" id="saveBtn">Save Changes</button>
+          <button class="admin-btn admin-btn-danger" id="resetBtn">Reset to Defaults</button>
+        </div>
+      </div>
+
+      <!-- Route descriptions -->
+      <div class="admin-card admin-card-info">
+        <h2 class="admin-section-title">Page Descriptions</h2>
+        <ul class="admin-how-list">
+          <li><strong>Homepage:</strong> Main Workshop Activity Book hub page</li>
+          <li><strong>Add Projects:</strong> Create and upload new workshop project activities</li>
+          <li><strong>View Projects:</strong> Browse and view the full project activity library</li>
+          <li><strong>Planning:</strong> Access the Planning tools and project scheduling features</li>
+          <li><strong>Admin:</strong> Administrative functions — user roles, permissions, and system settings</li>
+        </ul>
+      </div>
+
+      <!-- Important notes -->
+      <div class="admin-card" style="border-color:#f59e0b;background:#fffbeb">
+        <h2 class="admin-section-title" style="border-color:#fde68a">Important Notes</h2>
+        <ul class="admin-how-list">
+          <li><strong>Admin role</strong> should always have access to all pages</li>
+          <li><strong>Public Access</strong> role is assigned to all logged-out visitors by default</li>
+          <li>Specific users can be granted additional roles via the <a href="/admin_user_roles.html" style="color:var(--accent)">User Role Management</a> page</li>
+          <li>Changes take effect immediately after saving</li>
+          <li>Users will see "Access Denied" if they try to access a page without permission</li>
+        </ul>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="admin_permissions.js"></script>
+</body>
+</html>

@@ -315,3 +315,76 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Permissions Matrix Table ─────────────────────────────────────────────── */
+.perm-table-wrap {
+  overflow-x: auto;
+}
+
+.perm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.perm-table thead tr {
+  background: #1c74b9;
+  color: #fff;
+}
+
+.perm-table th {
+  padding: 12px 18px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.perm-role-col {
+  text-align: left !important;
+  min-width: 140px;
+}
+
+.perm-role-name {
+  font-weight: 700;
+  color: var(--ink);
+  padding: 11px 18px;
+  border-bottom: 1px solid #e2ecf5;
+}
+
+.perm-check-cell {
+  text-align: center;
+  padding: 11px 18px;
+  border-bottom: 1px solid #e2ecf5;
+}
+
+.perm-table tbody tr:hover td {
+  background: #f0f7ff;
+}
+
+.perm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Custom checkbox */
+.perm-cb {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.perm-cb:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.perm-actions {
+  display: flex;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1.5px solid var(--panel-border);
+  background: #f8fafd;
+}
