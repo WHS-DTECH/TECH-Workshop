@@ -779,3 +779,207 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Site Footer ─────────────────────────────────────────────────────────── */
+.site-footer {
+  background: var(--accent, #1c74b9);
+  color: rgba(255,255,255,0.85);
+  padding: 22px 24px;
+  margin-top: auto;
+}
+.site-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.footer-copy {
+  font-size: 0.78rem;
+  margin: 0;
+  opacity: 0.85;
+}
+.btn-suggest-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.5);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 7px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.18s;
+}
+.btn-suggest-footer:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+/* ── Suggest an Activity Page ────────────────────────────────────────────── */
+.suggest-section {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px 60px;
+}
+.suggest-card {
+  background: #fff;
+  border: 1.5px solid #d6e4f0;
+  border-radius: 14px;
+  padding: 36px 40px 40px;
+  max-width: 640px;
+  width: 100%;
+  box-shadow: 0 2px 18px rgba(28,116,185,0.08);
+}
+.suggest-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.1rem;
+  color: var(--accent, #1c74b9);
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.suggest-icon { font-size: 1.7rem; }
+.suggest-subtitle {
+  color: #555;
+  font-size: 0.92rem;
+  margin: 0 0 24px;
+}
+.suggest-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 18px;
+}
+.suggest-field label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink, #1a2a3a);
+}
+.suggest-field input,
+.suggest-field textarea {
+  border: 1.5px solid #c7d9eb;
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--ink, #1a2a3a);
+  background: #f8fbff;
+  transition: border-color 0.15s;
+  resize: vertical;
+}
+.suggest-field input:focus,
+.suggest-field textarea:focus {
+  outline: none;
+  border-color: var(--accent, #1c74b9);
+  background: #fff;
+}
+.suggest-hint {
+  font-size: 0.75rem;
+  color: #777;
+  margin: 0;
+}
+
+/* PDF upload zone */
+.pdf-upload-zone {
+  position: relative;
+  border: 2px dashed #c7d9eb;
+  border-radius: 8px;
+  background: #f5f9fd;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+  overflow: hidden;
+}
+.pdf-upload-zone:hover,
+.pdf-upload-zone.drag-over {
+  border-color: var(--accent, #1c74b9);
+  background: #edf4fb;
+}
+.pdf-upload-zone.has-file {
+  border-color: #2ecc71;
+  background: #f0fff6;
+}
+.pdf-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.pdf-upload-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 22px 16px;
+  color: #6b8faf;
+  pointer-events: none;
+}
+.pdf-upload-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0;
+}
+.pdf-upload-sub {
+  font-size: 0.75rem;
+  margin: 0;
+  color: #8aa0b5;
+}
+
+/* Submit button */
+.suggest-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent, #1c74b9);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 26px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, opacity 0.18s;
+  margin-top: 4px;
+}
+.suggest-submit:hover { background: #155d9a; }
+.suggest-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Status bar */
+.suggest-status {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #edf4fb;
+  color: var(--accent, #1c74b9);
+  border: 1.5px solid #c7d9eb;
+}
+.suggest-status.success {
+  background: #f0fff6;
+  color: #1a8c4e;
+  border-color: #a8e6c5;
+}
+.suggest-status.error {
+  background: #fff5f5;
+  color: #c0392b;
+  border-color: #f5b5b0;
+}
+.suggest-status.loading {
+  background: #fffbe6;
+  color: #8a6c00;
+  border-color: #ffe08a;
+}
+
+@media (max-width: 600px) {
+  .suggest-card { padding: 24px 16px; }
+  .site-footer-inner { flex-direction: column; align-items: flex-start; }
+}

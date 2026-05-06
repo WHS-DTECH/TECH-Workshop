@@ -7,6 +7,17 @@ const { Pool } = require('pg');
 const pgSession = require('connect-pg-simple')(session);
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
+
+// Multer — memory storage (keeps PDF in RAM, stores in DB as buffer)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Only PDF files are allowed'));
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -59,6 +70,21 @@ async function initDB() {
       page VARCHAR(100) NOT NULL,
       allowed BOOLEAN DEFAULT true,
       UNIQUE(role, page)
+    );
+  `);
+
+  // Activity suggestions table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_suggestions (
+      id SERIAL PRIMARY KEY,
+      submitter_name VARCHAR(255) NOT NULL,
+      submitter_email VARCHAR(255) NOT NULL,
+      activity_name VARCHAR(255) NOT NULL,
+      activity_url TEXT,
+      reason TEXT,
+      pdf_data BYTEA,
+      pdf_filename VARCHAR(255),
+      submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -347,6 +373,59 @@ app.post('/api/admin/permissions/reset', requireAdmin, async (req, res) => {
       }
     }
     res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Activity Suggestion ───────────────────────────────────────────
+app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
+  try {
+    const { name, email, activity_name, activity_url, reason } = req.body;
+    if (!name || !email || !activity_name) {
+      return res.status(400).json({ error: 'Name, email, and activity name are required.' });
+    }
+    const pdfData = req.file ? req.file.buffer : null;
+    const pdfFilename = req.file ? req.file.originalname : null;
+    await pool.query(
+      `INSERT INTO activity_suggestions (submitter_name, submitter_email, activity_name, activity_url, reason, pdf_data, pdf_filename)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [name.trim(), email.trim(), activity_name.trim(), activity_url?.trim() || null, reason?.trim() || null, pdfData, pdfFilename]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Suggestion error:', e);
+    res.status(500).json({ error: 'Failed to save suggestion.' });
+  }
+});
+
+// Admin: view all suggestions
+app.get('/api/admin/suggestions', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, submitter_name, submitter_email, activity_name, activity_url, reason, pdf_filename, submitted_at
+       FROM activity_suggestions ORDER BY submitted_at DESC`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Admin: download PDF for a suggestion
+app.get('/api/admin/suggestions/:id/pdf', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT pdf_data, pdf_filename FROM activity_suggestions WHERE id = $1',
+      [parseInt(req.params.id)]
+    );
+    if (!result.rows.length || !result.rows[0].pdf_data) {
+      return res.status(404).json({ error: 'No PDF found.' });
+    }
+    const { pdf_data, pdf_filename } = result.rows[0];
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pdf_filename || 'suggestion.pdf'}"`);
+    res.send(pdf_data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
