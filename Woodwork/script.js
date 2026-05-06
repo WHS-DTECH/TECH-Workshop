@@ -255,23 +255,6 @@ function renderLibrary() {
   libraryStats.textContent = `${activities.length} shown`;
 }
 
-// ── Google Auth ────────────────────────────────────────────────────────────
-fetch('/api/user')
-  .then(res => res.json())
-  .then(user => {
-    if (user) {
-      document.getElementById('googleSignIn').style.display = 'none';
-      const chip = document.getElementById('userChip');
-      chip.style.display = 'inline-flex';
-      document.getElementById('userName').textContent = user.name;
-      if (user.picture) {
-        document.getElementById('userAvatar').src = user.picture;
-        document.getElementById('userAvatar').alt = user.name;
-      }
-    }
-  })
-  .catch(() => {}); // static fallback — no server running locally
-
 function initialise() {
   libraryActivities.forEach((activity) => {
     activity.image = buildPlaceholder(activity.title, activity.type);
