@@ -84,6 +84,12 @@ async function initDB() {
     );
   `);
 
+  // Legacy compatibility: some databases already have role_permissions in an older wide-column format.
+  // Add the normalized columns expected by this app if they are missing.
+  await pool.query(`ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS role VARCHAR(100);`);
+  await pool.query(`ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS page VARCHAR(100);`);
+  await pool.query(`ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS allowed BOOLEAN DEFAULT true;`);
+
   // Activity suggestions table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS activity_suggestions (
@@ -100,7 +106,7 @@ async function initDB() {
   `);
 
   // Seed default permissions if none exist
-  const existing = await pool.query('SELECT COUNT(*) FROM role_permissions');
+  const existing = await pool.query('SELECT COUNT(*) FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
   if (parseInt(existing.rows[0].count) === 0) {
     const defaults = [
       // [role, homepage, add_projects, view_projects, planning, admin]
@@ -116,7 +122,7 @@ async function initDB() {
     for (const [role, ...perms] of defaults) {
       for (let i = 0; i < pages.length; i++) {
         await pool.query(
-          'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
           [role, pages[i], perms[i]]
         );
       }
@@ -343,7 +349,35 @@ app.get('/api/my-roles', requireAuth, async (req, res) => {
 // GET all role permissions
 app.get('/api/admin/permissions', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT role, page, allowed FROM role_permissions ORDER BY role, page');
+    let result = await pool.query(
+      'SELECT role, page, allowed FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL ORDER BY role, page'
+    );
+
+    // Self-heal old databases that had only legacy columns populated.
+    if (!result.rows.length) {
+      const defaults = [
+        ['Admin',         true,  true,  true,  true,  true ],
+        ['Lead Teacher',  true,  true,  true,  true,  false],
+        ['Teacher',       true,  false, true,  true,  false],
+        ['Technician',    true,  false, true,  false, false],
+        ['Staff',         true,  false, true,  false, false],
+        ['Student',       true,  false, true,  false, false],
+        ['Public Access', true,  false, false, false, false],
+      ];
+      const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
+      for (const [role, ...perms] of defaults) {
+        for (let i = 0; i < pages.length; i++) {
+          await pool.query(
+            'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
+            [role, pages[i], perms[i]]
+          );
+        }
+      }
+      result = await pool.query(
+        'SELECT role, page, allowed FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL ORDER BY role, page'
+      );
+    }
+
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -355,15 +389,18 @@ app.post('/api/admin/permissions', requireAdmin, async (req, res) => {
   const { permissions } = req.body; // [{ role, page, allowed }]
   if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions array required' });
   try {
+    await pool.query('BEGIN');
+    await pool.query('DELETE FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
     for (const p of permissions) {
       await pool.query(
-        `INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)
-         ON CONFLICT (role, page) DO UPDATE SET allowed = EXCLUDED.allowed`,
+        'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
         [p.role, p.page, p.allowed]
       );
     }
+    await pool.query('COMMIT');
     res.json({ success: true });
   } catch (e) {
+    await pool.query('ROLLBACK');
     res.status(500).json({ error: e.message });
   }
 });
@@ -371,7 +408,7 @@ app.post('/api/admin/permissions', requireAdmin, async (req, res) => {
 // POST reset permissions to defaults
 app.post('/api/admin/permissions/reset', requireAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM role_permissions');
+    await pool.query('DELETE FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
     const defaults = [
       ['Admin',         true,  true,  true,  true,  true ],
       ['Lead Teacher',  true,  true,  true,  true,  false],
