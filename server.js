@@ -39,6 +39,50 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+const ROLE_TITLE_TO_SLUG = {
+  'Admin': 'admin',
+  'Lead Teacher': 'lead_teacher',
+  'Teacher': 'teacher',
+  'Technician': 'technician',
+  'Staff': 'staff',
+  'Student': 'student',
+  'Public Access': 'public_access'
+};
+
+const ROLE_SLUG_TO_TITLE = Object.fromEntries(
+  Object.entries(ROLE_TITLE_TO_SLUG).map(([title, slug]) => [slug, title])
+);
+
+function toRoleTitle(slugOrTitle) {
+  return ROLE_SLUG_TO_TITLE[slugOrTitle] || slugOrTitle;
+}
+
+function toRoleSlug(titleOrSlug) {
+  return ROLE_TITLE_TO_SLUG[titleOrSlug] || String(titleOrSlug || '').toLowerCase().replace(/\s+/g, '_');
+}
+
+async function isLegacyRolePermissionsSchema() {
+  const result = await pool.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'role_permissions'
+  `);
+  const cols = new Set(result.rows.map(r => r.column_name));
+  return cols.has('role_name') && cols.has('recipes') && cols.has('add_recipes');
+}
+
+function buildDefaultPermissions() {
+  return [
+    ['Admin',         true,  true,  true,  true,  true ],
+    ['Lead Teacher',  true,  true,  true,  true,  false],
+    ['Teacher',       true,  false, true,  true,  false],
+    ['Technician',    true,  false, true,  false, false],
+    ['Staff',         true,  false, true,  false, false],
+    ['Student',       true,  false, true,  false, false],
+    ['Public Access', true,  false, false, false, false],
+  ];
+}
+
 // Initialise database tables
 async function initDB() {
   await pool.query(`
@@ -106,28 +150,22 @@ async function initDB() {
   `);
 
   // Seed default permissions if none exist
-  const existing = await pool.query('SELECT COUNT(*) FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
-  if (parseInt(existing.rows[0].count) === 0) {
-    const defaults = [
-      // [role, homepage, add_projects, view_projects, planning, admin]
-      ['Admin',         true,  true,  true,  true,  true ],
-      ['Lead Teacher',  true,  true,  true,  true,  false],
-      ['Teacher',       true,  false, true,  true,  false],
-      ['Technician',    true,  false, true,  false, false],
-      ['Staff',         true,  false, true,  false, false],
-      ['Student',       true,  false, true,  false, false],
-      ['Public Access', true,  false, false, false, false],
-    ];
-    const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
-    for (const [role, ...perms] of defaults) {
-      for (let i = 0; i < pages.length; i++) {
-        await pool.query(
-          'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
-          [role, pages[i], perms[i]]
-        );
+  const legacy = await isLegacyRolePermissionsSchema();
+  if (!legacy) {
+    const existing = await pool.query('SELECT COUNT(*) FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
+    if (parseInt(existing.rows[0].count) === 0) {
+      const defaults = buildDefaultPermissions();
+      const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
+      for (const [role, ...perms] of defaults) {
+        for (let i = 0; i < pages.length; i++) {
+          await pool.query(
+            'INSERT INTO role_permissions (role, page, allowed) VALUES ($1, $2, $3)',
+            [role, pages[i], perms[i]]
+          );
+        }
       }
+      console.log('Default permissions seeded.');
     }
-    console.log('Default permissions seeded.');
   }
 
   console.log('Database tables ready.');
@@ -349,6 +387,46 @@ app.get('/api/my-roles', requireAuth, async (req, res) => {
 // GET all role permissions
 app.get('/api/admin/permissions', requireAdmin, async (req, res) => {
   try {
+    const legacy = await isLegacyRolePermissionsSchema();
+    if (legacy) {
+      const rows = await pool.query(
+        `SELECT role_name, recipes, add_recipes, planning, admin
+         FROM role_permissions
+         WHERE role_name IS NOT NULL
+         ORDER BY role_name`
+      );
+
+      if (!rows.rows.length) {
+        const defaults = buildDefaultPermissions();
+        for (const [role, homepage, addProjects, viewProjects, planning, admin] of defaults) {
+          const roleSlug = toRoleSlug(role);
+          const recipes = !!(homepage || viewProjects);
+          await pool.query(
+            `INSERT INTO role_permissions (role_name, recipes, add_recipes, planning, admin)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [roleSlug, recipes, !!addProjects, !!planning, !!admin]
+          );
+        }
+      }
+
+      const normalized = [];
+      const legacyRows = (await pool.query(
+        `SELECT role_name, recipes, add_recipes, planning, admin
+         FROM role_permissions
+         WHERE role_name IS NOT NULL
+         ORDER BY role_name`
+      )).rows;
+      for (const r of legacyRows) {
+        const role = toRoleTitle(r.role_name);
+        normalized.push({ role, page: 'homepage', allowed: !!r.recipes });
+        normalized.push({ role, page: 'add_projects', allowed: !!r.add_recipes });
+        normalized.push({ role, page: 'view_projects', allowed: !!r.recipes });
+        normalized.push({ role, page: 'planning', allowed: !!r.planning });
+        normalized.push({ role, page: 'admin', allowed: !!r.admin });
+      }
+      return res.json(normalized);
+    }
+
     let result = await pool.query(
       'SELECT role, page, allowed FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL ORDER BY role, page'
     );
@@ -389,6 +467,40 @@ app.post('/api/admin/permissions', requireAdmin, async (req, res) => {
   const { permissions } = req.body; // [{ role, page, allowed }]
   if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions array required' });
   try {
+    const legacy = await isLegacyRolePermissionsSchema();
+    if (legacy) {
+      const byRole = new Map();
+      for (const p of permissions) {
+        const role = p.role;
+        if (!byRole.has(role)) byRole.set(role, {});
+        byRole.get(role)[p.page] = !!p.allowed;
+      }
+
+      for (const [roleTitle, pages] of byRole.entries()) {
+        const roleSlug = toRoleSlug(roleTitle);
+        const recipes = !!(pages.homepage || pages.view_projects);
+        const addRecipes = !!pages.add_projects;
+        const planning = !!pages.planning;
+        const admin = !!pages.admin;
+
+        const updateResult = await pool.query(
+          `UPDATE role_permissions
+           SET recipes = $2, add_recipes = $3, planning = $4, admin = $5
+           WHERE role_name = $1`,
+          [roleSlug, recipes, addRecipes, planning, admin]
+        );
+
+        if (updateResult.rowCount === 0) {
+          await pool.query(
+            `INSERT INTO role_permissions (role_name, recipes, add_recipes, planning, admin)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [roleSlug, recipes, addRecipes, planning, admin]
+          );
+        }
+      }
+      return res.json({ success: true });
+    }
+
     await pool.query('BEGIN');
     await pool.query('DELETE FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
     for (const p of permissions) {
@@ -408,16 +520,31 @@ app.post('/api/admin/permissions', requireAdmin, async (req, res) => {
 // POST reset permissions to defaults
 app.post('/api/admin/permissions/reset', requireAdmin, async (req, res) => {
   try {
+    const legacy = await isLegacyRolePermissionsSchema();
+    if (legacy) {
+      const defaults = buildDefaultPermissions();
+      for (const [role, homepage, addProjects, viewProjects, planning, admin] of defaults) {
+        const roleSlug = toRoleSlug(role);
+        const recipes = !!(homepage || viewProjects);
+        const updateResult = await pool.query(
+          `UPDATE role_permissions
+           SET recipes = $2, add_recipes = $3, planning = $4, admin = $5
+           WHERE role_name = $1`,
+          [roleSlug, recipes, !!addProjects, !!planning, !!admin]
+        );
+        if (updateResult.rowCount === 0) {
+          await pool.query(
+            `INSERT INTO role_permissions (role_name, recipes, add_recipes, planning, admin)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [roleSlug, recipes, !!addProjects, !!planning, !!admin]
+          );
+        }
+      }
+      return res.json({ success: true });
+    }
+
     await pool.query('DELETE FROM role_permissions WHERE role IS NOT NULL AND page IS NOT NULL');
-    const defaults = [
-      ['Admin',         true,  true,  true,  true,  true ],
-      ['Lead Teacher',  true,  true,  true,  true,  false],
-      ['Teacher',       true,  false, true,  true,  false],
-      ['Technician',    true,  false, true,  false, false],
-      ['Staff',         true,  false, true,  false, false],
-      ['Student',       true,  false, true,  false, false],
-      ['Public Access', true,  false, false, false, false],
-    ];
+    const defaults = buildDefaultPermissions();
     const pages = ['homepage', 'add_projects', 'view_projects', 'planning', 'admin'];
     for (const [role, ...perms] of defaults) {
       for (let i = 0; i < pages.length; i++) {
