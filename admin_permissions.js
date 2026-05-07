@@ -140,6 +140,9 @@ function getPrimaryRole(roles) {
 }
 
 fetch('/api/user')
+  .then(res => res.json())
+  .then(async user => {
+    if (user) {
       const signInBtn = document.getElementById('googleSignIn');
       const chip = document.getElementById('userChip');
       if (signInBtn) signInBtn.style.display = 'none';

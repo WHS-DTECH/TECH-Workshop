@@ -212,15 +212,22 @@ async function requireAdmin(req, res, next) {
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 // Start Google login
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+app.get('/auth/google', (req, res, next) => {
+  const { returnTo } = req.query;
+  // Only allow internal relative paths to prevent open redirects
+  if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
+    req.session.returnTo = returnTo;
+  }
+  next();
+}, passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 // Google callback
 app.get('/auth/callback',
   passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }),
   (req, res) => {
-    res.redirect('/'); // Redirect to home after successful login
+    const returnTo = req.session.returnTo;
+    delete req.session.returnTo;
+    res.redirect(returnTo || '/');
   }
 );
 
