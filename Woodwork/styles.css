@@ -21,7 +21,7 @@
 
 body {
   margin: 0;
-  font-family: "Nunito Sans", "Segoe UI", sans-serif;
+  font-family: "Lexend", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
     radial-gradient(circle at 12% 20%, rgba(255, 255, 255, 0.45), transparent 45%),
