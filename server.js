@@ -32,6 +32,15 @@ const upload = multer({
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const siteUrl = process.env.SITE_URL || '';
+const callbackUrl = process.env.CALLBACK_URL || '';
+const isSecureDeployment = /^https:\/\//i.test(siteUrl) || /^https:\/\//i.test(callbackUrl);
+const configuredAllowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || '')
+  .split(',')
+  .map(domain => domain.trim().toLowerCase())
+  .filter(Boolean);
+const fallbackAllowedDomain = ((process.env.EMAIL_USER || '').split('@')[1] || '').trim().toLowerCase();
+const allowedEmailDomains = new Set(configuredAllowedDomains.length ? configuredAllowedDomains : (fallbackAllowedDomain ? [fallbackAllowedDomain] : []));
 
 // Neon database connection
 const pool = new Pool({
@@ -174,6 +183,7 @@ async function initDB() {
 initDB().catch(console.error);
 
 // Middleware
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -184,7 +194,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isSecureDeployment,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  }
 }));
 
 app.use(passport.initialize());
@@ -198,9 +213,23 @@ passport.use(new GoogleStrategy({
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const googleId = profile.id;
-    const email = profile.emails[0].value;
+    const email = (profile.emails && profile.emails[0] && profile.emails[0].value || '').trim().toLowerCase();
     const name = profile.displayName;
     const picture = profile.photos[0].value;
+    const hostedDomain = String(profile._json && profile._json.hd || '').trim().toLowerCase();
+    const emailVerified = Boolean(profile._json && profile._json.email_verified);
+    const emailDomain = email.includes('@') ? email.split('@')[1] : '';
+
+    if (!email || !emailVerified) {
+      return done(null, false, { message: 'Google account email must be verified.' });
+    }
+
+    if (allowedEmailDomains.size > 0) {
+      const allowed = allowedEmailDomains.has(emailDomain) || (hostedDomain && allowedEmailDomains.has(hostedDomain));
+      if (!allowed) {
+        return done(null, false, { message: 'Please sign in with an approved school account.' });
+      }
+    }
 
     // Check if user already exists
     let result = await pool.query(
@@ -263,7 +292,11 @@ app.get('/auth/google', (req, res, next) => {
     req.session.returnTo = returnTo;
   }
   next();
-}, passport.authenticate('google', { scope: ['profile', 'email'] }));
+}, passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  state: true,
+  hd: allowedEmailDomains.size === 1 ? [...allowedEmailDomains][0] : undefined,
+}));
 
 // Google callback
 app.get('/auth/callback',
