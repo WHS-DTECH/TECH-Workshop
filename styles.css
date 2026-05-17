@@ -983,3 +983,173 @@ body {
   .suggest-card { padding: 24px 16px; }
   .site-footer-inner { flex-direction: column; align-items: flex-start; }
 }
+
+.btn-light {
+  background: #ffffff;
+  color: var(--ink);
+  border: 1px solid #b8cbe0;
+}
+
+/* Upload Activity page */
+.upload-shell {
+  width: min(1240px, 97vw);
+}
+
+.upload-header h1 {
+  margin: 0;
+  font-family: "Bebas Neue", sans-serif;
+  letter-spacing: 0.04em;
+  font-size: clamp(1.8rem, 2.7vw, 2.4rem);
+  color: #14436c;
+}
+
+.upload-header p {
+  margin: 2px 0 0;
+  color: #416483;
+  font-size: 0.82rem;
+}
+
+.upload-alert {
+  border: 1px solid #ebb6b6;
+  background: #ffecec;
+  color: #8d2f2f;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.upload-alert[data-type="ready"],
+.upload-alert[data-type="success"] {
+  background: #e9fff2;
+  border-color: #9cd8b5;
+  color: #216a42;
+}
+
+.upload-alert[data-type="saving"] {
+  background: #fff9e2;
+  border-color: #e8d394;
+  color: #7e6520;
+}
+
+.upload-alert[data-type="error"] {
+  background: #ffe9e9;
+  border-color: #efb0b0;
+  color: #922f2f;
+}
+
+.upload-panel {
+  background: #e2e7ed;
+  border: 1px solid #b8c8d8;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.upload-panel h2 {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: #214f75;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#uploadActivityForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#uploadActivityForm label,
+#uploadActivityForm fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#uploadActivityForm span,
+#uploadActivityForm legend {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #3d6689;
+}
+
+#uploadActivityForm input,
+#uploadActivityForm select,
+#uploadActivityForm textarea {
+  border: 1px solid #6ea3cd;
+  border-radius: 3px;
+  background: #f7fbff;
+  color: #1f4160;
+  padding: 7px 8px;
+  font-size: 0.76rem;
+  font-family: inherit;
+}
+
+#uploadActivityForm textarea {
+  resize: vertical;
+}
+
+#uploadActivityForm input:focus,
+#uploadActivityForm select:focus,
+#uploadActivityForm textarea:focus {
+  outline: none;
+  border-color: #2f7dbe;
+  background: #ffffff;
+}
+
+.upload-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.upload-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.upload-grid.resource-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(230px, 1fr);
+}
+
+#uploadActivityForm fieldset {
+  margin: 0;
+  border: 1px solid #94b5d1;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #edf4fb;
+}
+
+.checkbox-line {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 7px !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #224966;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.checkbox-line input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+
+.checkbox-line.strong {
+  margin-top: 2px;
+}
+
+.upload-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .upload-grid.two-col,
+  .upload-grid.resource-grid {
+    grid-template-columns: 1fr;
+  }
+}

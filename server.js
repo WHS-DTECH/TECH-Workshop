@@ -30,6 +30,17 @@ const upload = multer({
   }
 });
 
+// Upload image for activity cards (PNG/JPG/JPEG only)
+const uploadOutcomeImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only PNG and JPG images are allowed'));
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const siteUrl = process.env.SITE_URL || '';
@@ -155,6 +166,36 @@ async function initDB() {
       pdf_data BYTEA,
       pdf_filename VARCHAR(255),
       submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_activities (
+      id SERIAL PRIMARY KEY,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      activity_name VARCHAR(255) NOT NULL,
+      card_url TEXT,
+      year_level VARCHAR(50),
+      activity_type VARCHAR(100),
+      activity_category VARCHAR(100),
+      duration_minutes INTEGER,
+      difficulty VARCHAR(100),
+      card_color VARCHAR(50),
+      subject_stream VARCHAR(100),
+      outcome_image_url TEXT,
+      outcome_image_data BYTEA,
+      outcome_image_mime VARCHAR(100),
+      outcome_image_filename VARCHAR(255),
+      short_description TEXT,
+      resources_text TEXT,
+      equipment_text TEXT,
+      instructions_text TEXT,
+      management_notes TEXT,
+      class_preparation TEXT,
+      assessment_focus TEXT,
+      common_resources TEXT[] DEFAULT '{}',
+      show_this_week BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -594,6 +635,73 @@ app.post('/api/admin/permissions/reset', requireAdmin, async (req, res) => {
 });
 
 // ── Activity Suggestion ───────────────────────────────────────────
+app.post('/api/upload-activity', requireAuth, uploadOutcomeImage.single('outcome_image_file'), async (req, res) => {
+  try {
+    const activityName = String(req.body.activity_name || '').trim();
+    if (!activityName) {
+      return res.status(400).json({ error: 'Activity name is required.' });
+    }
+
+    const durationRaw = String(req.body.duration_minutes || '').trim();
+    const durationMinutes = durationRaw ? Number.parseInt(durationRaw, 10) : null;
+    if (durationRaw && Number.isNaN(durationMinutes)) {
+      return res.status(400).json({ error: 'Duration must be a number of minutes.' });
+    }
+
+    const commonResourcesRaw = req.body.common_resources;
+    const commonResources = Array.isArray(commonResourcesRaw)
+      ? commonResourcesRaw.filter(Boolean)
+      : (commonResourcesRaw ? [commonResourcesRaw] : []);
+
+    const showThisWeek = req.body.show_this_week === 'on' || req.body.show_this_week === 'true';
+
+    const file = req.file;
+    const insert = await pool.query(
+      `INSERT INTO uploaded_activities
+      (created_by, activity_name, card_url, year_level, activity_type, activity_category, duration_minutes,
+       difficulty, card_color, subject_stream, outcome_image_url, outcome_image_data, outcome_image_mime,
+       outcome_image_filename, short_description, resources_text, equipment_text, instructions_text,
+       management_notes, class_preparation, assessment_focus, common_resources, show_this_week)
+      VALUES
+      ($1, $2, $3, $4, $5, $6, $7,
+       $8, $9, $10, $11, $12, $13,
+       $14, $15, $16, $17, $18,
+       $19, $20, $21, $22, $23)
+      RETURNING id, created_at`,
+      [
+        req.user.id,
+        activityName,
+        String(req.body.card_url || '').trim() || null,
+        String(req.body.year_level || '').trim() || null,
+        String(req.body.activity_type || '').trim() || null,
+        String(req.body.activity_category || '').trim() || null,
+        durationMinutes,
+        String(req.body.difficulty || '').trim() || null,
+        String(req.body.card_color || '').trim() || null,
+        String(req.body.subject_stream || '').trim() || null,
+        String(req.body.outcome_image_url || '').trim() || null,
+        file ? file.buffer : null,
+        file ? file.mimetype : null,
+        file ? file.originalname : null,
+        String(req.body.short_description || '').trim() || null,
+        String(req.body.resources_text || '').trim() || null,
+        String(req.body.equipment_text || '').trim() || null,
+        String(req.body.instructions_text || '').trim() || null,
+        String(req.body.management_notes || '').trim() || null,
+        String(req.body.class_preparation || '').trim() || null,
+        String(req.body.assessment_focus || '').trim() || null,
+        commonResources,
+        showThisWeek
+      ]
+    );
+
+    res.json({ success: true, id: insert.rows[0].id, created_at: insert.rows[0].created_at });
+  } catch (e) {
+    console.error('Upload activity error:', e);
+    res.status(500).json({ error: 'Failed to save activity.' });
+  }
+});
+
 app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
   try {
     const { name, email, activity_name, activity_url, reason } = req.body;
