@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workshop Woodwork Hub</title>
+  <title>Assessment Management - Workshop Admin</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="shortcut icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="admin.css" />
 </head>
 <body>
   <header class="top-strip">
@@ -37,7 +38,7 @@
       </nav>
       <div class="profile-actions">
         <div class="auth-area" id="authArea">
-          <a href="/auth/google" class="btn-google" id="googleSignIn">
+          <a href="/auth/google?returnTo=/admin_assessment_management.html" class="btn-google" id="googleSignIn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
               <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
               <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
@@ -58,87 +59,84 @@
     </div>
   </header>
 
-  <main class="page-shell">
-    <section class="hero-panel" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">WOODWORK &amp; FURNITURE HUB</p>
-        <h1 id="hero-title">Workshop Activity Book</h1>
-        <p>
-          Explore practical workshop tasks students are completing this term, from joinery basics and timber prep
-          to furniture builds and finishing.
-        </p>
-        <div class="hero-actions">
-          <button class="btn btn-primary" onclick="location.href='/suggest_activity.html'">Suggest an Activity</button>
-          <span class="counter" id="activityCounter">0 activities in the student library</span>
+  <main class="page-shell admin-shell">
+    <div id="accessDenied" class="access-denied" style="display:none">
+      <h2>Access Denied</h2>
+      <p>You need to be signed in as Admin or Lead Teacher to view this page.</p>
+      <a href="/" class="btn btn-primary">Back to Hub</a>
+    </div>
+
+    <div id="adminContent" style="display:none">
+      <div class="admin-header-row">
+        <div>
+          <h1 class="admin-title">Assessment Management</h1>
+          <p class="admin-subtitle">NZQA Level 2 and Level 3 Furniture assessment standards.</p>
+        </div>
+        <div class="admin-header-actions">
+          <a href="/" class="admin-btn admin-btn-secondary">â† Back to Hub</a>
         </div>
       </div>
-      <div class="hero-shape" aria-hidden="true"></div>
-    </section>
 
-    <section class="panel" aria-labelledby="this-week-title">
-      <div class="panel-heading">
-        <h2 id="this-week-title">Activities Running This Week: 3 - 9 May</h2>
-      </div>
-      <div id="thisWeekGrid" class="card-grid card-grid-this-week"></div>
-    </section>
+      <section class="admin-card">
+        <h2 class="admin-section-title" style="margin-bottom:10px">Assessment Standards Manager</h2>
 
-    <section class="panel" aria-labelledby="library-title">
-      <div class="panel-controls">
-        <div class="title-row">
-          <h2 id="library-title">Activity Library Students Can Choose</h2>
-          <div class="library-stats" id="libraryStats">0 shown</div>
-        </div>
-
-        <div class="filter-row">
-          <label class="field">
-            <span>Search</span>
-            <input type="search" id="searchInput" placeholder="Search activities (e.g. stool, laminate, joints)" />
+        <div class="admin-form-grid standards-filter-grid" style="margin-bottom:8px">
+          <label class="admin-label">
+            Subject Set
+            <select id="subjectSetFilter" class="admin-select">
+              <option value="all">All subject sets</option>
+              <option value="furniture_making">Furniture Making</option>
+              <option value="furniture_finishing">Furniture Finishing</option>
+              <option value="upholstery">Upholstery</option>
+              <option value="furniture_operations">Furniture Operations</option>
+              <option value="furniture_drawing">Furniture Drawing</option>
+            </select>
           </label>
-          <label class="field field-compact">
-            <span>Year Level</span>
-            <select id="yearFilter">
+
+          <label class="admin-label">
+            Level
+            <select id="levelFilter" class="admin-select">
               <option value="all">All levels</option>
-              <option value="Year 9">Year 9</option>
-              <option value="Year 10">Year 10</option>
-              <option value="Year 11">Year 11</option>
-              <option value="Year 12">Year 12</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
             </select>
           </label>
-          <label class="field field-compact">
-            <span>Type</span>
-            <select id="typeFilter">
-              <option value="all">All types</option>
-              <option value="Build">Build</option>
-              <option value="Repair">Repair</option>
-              <option value="Design">Design</option>
-              <option value="Finishing">Finishing</option>
-            </select>
+
+          <label class="admin-label">
+            Standard Number
+            <input id="standardSearch" class="admin-select" placeholder="e.g. 92013 or 14995" />
           </label>
-          <label class="field field-compact">
-            <span>Sort</span>
-            <select id="sortSelect">
-              <option value="name">Name (A-Z)</option>
-              <option value="duration">Duration (short-long)</option>
-              <option value="skill">Skill (beginner-advanced)</option>
-            </select>
-          </label>
+
+          <div class="admin-label" style="justify-content:flex-end">
+            <span style="visibility:hidden">Refresh</span>
+            <button id="refreshDataBtn" class="admin-btn admin-btn-primary" type="button">Refresh NZQA Data</button>
+          </div>
         </div>
-      </div>
-      <div id="libraryGrid" class="card-grid card-grid-library"></div>
-    </section>
+
+        <p id="loadInfo" class="admin-subtitle" style="margin:0 0 12px">Loaded 73 standards from NZQA Furniture Levels 2 and 3 listings.</p>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="standardsTable">
+            <thead>
+              <tr>
+                <th style="width:90px">Standard</th>
+                <th>Standard Name</th>
+                <th style="width:70px">Level</th>
+                <th style="width:80px">Credits</th>
+                <th style="width:90px">Type</th>
+                <th style="width:90px">NZQA</th>
+              </tr>
+            </thead>
+            <tbody id="standardsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
 
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <p class="footer-copy">Â© 2026 Westland High School â€“ Workshop Woodwork &amp; Furniture Hub</p>
-      <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
-    </div>
-  </footer>
-
-  <script src="script.js"></script>
+  <script src="admin_assessment_management.js"></script>
 </body>
 </html>
-
 
 
 
