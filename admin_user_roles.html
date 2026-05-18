@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Role Management â€“ Workshop</title>
+  <title>User Role Management – Workshop</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,6 +22,7 @@
           <div class="nav-dropdown-panel">
             <a href="/upload_activity.html">Upload Activity</a>
             <a href="/upload_url_idea.html">Upload URL Idea</a>
+            <a href="/upload_assessment_task.html">Upload Assessment Task</a>
           </div>
         </div>
         <a href="/suggest_activity.html">Suggest Activity</a>
@@ -63,7 +64,7 @@
     <!-- Access denied -->
     <div id="accessDenied" class="admin-access-denied" style="display:none">
       <div class="profile-card" style="text-align:center;padding:48px">
-        <div style="font-size:2.5rem;margin-bottom:12px">ðŸ”’</div>
+        <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
         <h2 style="margin:0 0 8px">Admin Access Required</h2>
         <p style="color:var(--soft-ink);margin:0">You need an Admin role to view this page. Contact an administrator to request access.</p>
         <a href="/" class="admin-btn admin-btn-secondary" style="margin-top:20px;display:inline-block">Back to Hub</a>
@@ -78,7 +79,7 @@
           <p class="admin-subtitle">Assign additional roles to users beyond their primary staff code role.</p>
         </div>
         <div class="admin-header-actions">
-          <a href="/" class="admin-btn admin-btn-secondary">â† Back to Hub</a>
+          <a href="/" class="admin-btn admin-btn-secondary">← Back to Hub</a>
         </div>
       </div>
 
@@ -114,14 +115,14 @@
               <label class="admin-label">
                 User Email
                 <select id="userSelect" class="admin-select">
-                  <option value="">â€” Select a user â€”</option>
+                  <option value="">— Select a user —</option>
                 </select>
               </label>
 
               <label class="admin-label">
                 Role to Add
                 <select id="roleSelect" class="admin-select">
-                  <option value="">â€” Select a role â€”</option>
+                  <option value="">— Select a role —</option>
                   <option value="Admin">Admin</option>
                   <option value="Teacher">Teacher</option>
                   <option value="Lead Teacher">Lead Teacher</option>
@@ -149,7 +150,7 @@
                   </tr>
                 </thead>
                 <tbody id="rolesTableBody">
-                  <tr><td colspan="4" class="admin-table-empty">Loadingâ€¦</td></tr>
+                  <tr><td colspan="4" class="admin-table-empty">Loading…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -173,7 +174,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <p class="footer-copy">Â© 2026 Westland High School â€“ Workshop Woodwork &amp; Furniture Hub</p>
+      <p class="footer-copy">© 2026 Westland High School – Workshop Woodwork &amp; Furniture Hub</p>
       <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
     </div>
   </footer>
@@ -181,6 +182,8 @@
   <script src="admin_user_roles.js"></script>
 </body>
 </html>
+
+
 
 
 

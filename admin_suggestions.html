@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Activity Suggestions â€“ Workshop Admin</title>
+  <title>Activity Suggestions – Workshop Admin</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,6 +22,7 @@
           <div class="nav-dropdown-panel">
             <a href="/upload_activity.html">Upload Activity</a>
             <a href="/upload_url_idea.html">Upload URL Idea</a>
+            <a href="/upload_assessment_task.html">Upload Assessment Task</a>
           </div>
         </div>
         <a href="/suggest_activity.html">Suggest Activity</a>
@@ -75,7 +76,7 @@
           <p class="admin-subtitle">All activity suggestions submitted by staff and students.</p>
         </div>
         <div class="admin-header-actions">
-          <span class="badge badge-blue" id="suggestionCount">Loadingâ€¦</span>
+          <span class="badge badge-blue" id="suggestionCount">Loading…</span>
         </div>
       </div>
 
@@ -95,7 +96,7 @@
               </tr>
             </thead>
             <tbody id="suggestionsBody">
-              <tr><td colspan="8" class="table-loading">Loading suggestionsâ€¦</td></tr>
+              <tr><td colspan="8" class="table-loading">Loading suggestions…</td></tr>
             </tbody>
           </table>
         </div>
@@ -104,7 +105,7 @@
       <!-- Detail modal -->
       <div id="suggestionModal" class="suggestion-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="suggestion-modal-box">
-          <button class="modal-close" id="modalClose" aria-label="Close">âœ•</button>
+          <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
           <h2 id="modalTitle" class="modal-heading">Suggestion Detail</h2>
           <div id="modalBody"></div>
         </div>
@@ -115,7 +116,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <p class="footer-copy">Â© 2026 Westland High School â€“ Workshop Woodwork &amp; Furniture Hub</p>
+      <p class="footer-copy">© 2026 Westland High School – Workshop Woodwork &amp; Furniture Hub</p>
       <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
     </div>
   </footer>
@@ -123,6 +124,8 @@
   <script src="admin_suggestions.js"></script>
 </body>
 </html>
+
+
 
 
 

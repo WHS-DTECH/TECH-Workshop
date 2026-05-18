@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Role Permissions â€“ Workshop</title>
+  <title>Role Permissions – Workshop</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,6 +22,7 @@
           <div class="nav-dropdown-panel">
             <a href="/upload_activity.html">Upload Activity</a>
             <a href="/upload_url_idea.html">Upload URL Idea</a>
+            <a href="/upload_assessment_task.html">Upload Assessment Task</a>
           </div>
         </div>
         <a href="/suggest_activity.html">Suggest Activity</a>
@@ -63,7 +64,7 @@
     <!-- Access denied -->
     <div id="accessDenied" class="admin-access-denied" style="display:none">
       <div class="profile-card" style="text-align:center;padding:48px">
-        <div style="font-size:2.5rem;margin-bottom:12px">ðŸ”’</div>
+        <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
         <h2 style="margin:0 0 8px">Admin Access Required</h2>
         <p style="color:var(--soft-ink);margin:0">You need an Admin role to view this page.</p>
         <a href="/" class="admin-btn admin-btn-secondary" style="margin-top:20px;display:inline-block">Back to Hub</a>
@@ -79,7 +80,7 @@
           <p class="admin-subtitle">Control which pages each role can access. Check a box to grant access, uncheck to remove access.</p>
         </div>
         <div class="admin-header-actions">
-          <a href="/admin_user_roles.html" class="admin-btn admin-btn-secondary">â† Back to Admin</a>
+          <a href="/admin_user_roles.html" class="admin-btn admin-btn-secondary">← Back to Admin</a>
         </div>
       </div>
 
@@ -100,7 +101,7 @@
               </tr>
             </thead>
             <tbody id="permTableBody">
-              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--soft-ink)">Loadingâ€¦</td></tr>
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--soft-ink)">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -119,7 +120,7 @@
           <li><strong>Add Projects:</strong> Create and upload new workshop project activities</li>
           <li><strong>View Projects:</strong> Browse and view the full project activity library</li>
           <li><strong>Planning:</strong> Access the Planning tools and project scheduling features</li>
-          <li><strong>Admin:</strong> Administrative functions â€” user roles, permissions, and system settings</li>
+          <li><strong>Admin:</strong> Administrative functions — user roles, permissions, and system settings</li>
         </ul>
       </div>
 
@@ -140,7 +141,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <p class="footer-copy">Â© 2026 Westland High School â€“ Workshop Woodwork &amp; Furniture Hub</p>
+      <p class="footer-copy">© 2026 Westland High School – Workshop Woodwork &amp; Furniture Hub</p>
       <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
     </div>
   </footer>
@@ -148,6 +149,8 @@
   <script src="admin_permissions.js"></script>
 </body>
 </html>
+
+
 
 
 

@@ -41,6 +41,17 @@ const uploadOutcomeImage = multer({
   }
 });
 
+// Upload supporting assessment images (up to 5 PNG/JPG files)
+const uploadAssessmentImages = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only PNG and JPG images are allowed'));
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const siteUrl = process.env.SITE_URL || '';
@@ -208,6 +219,35 @@ async function initDB() {
       card_color VARCHAR(50),
       idea_url TEXT NOT NULL,
       short_description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_assessment_tasks (
+      id SERIAL PRIMARY KEY,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assessment_task_name VARCHAR(255) NOT NULL,
+      year_level VARCHAR(50),
+      task_type VARCHAR(100),
+      activity_category VARCHAR(120),
+      difficulty VARCHAR(100),
+      subject_stream VARCHAR(120),
+      duration_hours VARCHAR(50),
+      card_color VARCHAR(50),
+      short_description TEXT,
+      task_list TEXT,
+      selected_standard VARCHAR(40),
+      standard_details TEXT,
+      req_achieved TEXT,
+      req_merit TEXT,
+      req_excellence TEXT,
+      submit_requirements TEXT,
+      relevant_implications TEXT,
+      progress_record TEXT,
+      feedback_training TEXT,
+      supporting_files JSONB DEFAULT '[]'::jsonb,
+      show_this_week BOOLEAN DEFAULT false,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -750,6 +790,67 @@ app.post('/api/upload-url-idea', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('Upload URL idea error:', e);
     res.status(500).json({ error: 'Failed to save URL idea.' });
+  }
+});
+
+app.post('/api/upload-assessment-task', requireAuth, uploadAssessmentImages.array('supporting_images', 5), async (req, res) => {
+  try {
+    const taskName = String(req.body.assessment_task_name || '').trim();
+    if (!taskName) {
+      return res.status(400).json({ error: 'Assessment task name is required.' });
+    }
+
+    const selectedStandard = String(req.body.selected_standard || '').trim();
+    const filesMeta = (req.files || []).map(file => ({
+      name: file.originalname,
+      mime: file.mimetype,
+      size: file.size,
+    }));
+
+    const showThisWeek = req.body.show_this_week === 'on' || req.body.show_this_week === 'true';
+
+    const result = await pool.query(
+      `INSERT INTO uploaded_assessment_tasks
+      (created_by, assessment_task_name, year_level, task_type, activity_category, difficulty, subject_stream,
+       duration_hours, card_color, short_description, task_list, selected_standard, standard_details,
+       req_achieved, req_merit, req_excellence, submit_requirements, relevant_implications,
+       progress_record, feedback_training, supporting_files, show_this_week)
+      VALUES
+      ($1, $2, $3, $4, $5, $6, $7,
+       $8, $9, $10, $11, $12, $13,
+       $14, $15, $16, $17, $18,
+       $19, $20, $21, $22)
+      RETURNING id, created_at`,
+      [
+        req.user.id,
+        taskName,
+        String(req.body.year_level || '').trim() || null,
+        String(req.body.task_type || '').trim() || null,
+        String(req.body.activity_category || '').trim() || null,
+        String(req.body.difficulty || '').trim() || null,
+        String(req.body.subject_stream || '').trim() || null,
+        String(req.body.duration_hours || '').trim() || null,
+        String(req.body.card_color || '').trim() || null,
+        String(req.body.short_description || '').trim() || null,
+        String(req.body.task_list || '').trim() || null,
+        selectedStandard || null,
+        String(req.body.standard_details || '').trim() || null,
+        String(req.body.req_achieved || '').trim() || null,
+        String(req.body.req_merit || '').trim() || null,
+        String(req.body.req_excellence || '').trim() || null,
+        String(req.body.submit_requirements || '').trim() || null,
+        String(req.body.relevant_implications || '').trim() || null,
+        String(req.body.progress_record || '').trim() || null,
+        String(req.body.feedback_training || '').trim() || null,
+        JSON.stringify(filesMeta),
+        showThisWeek,
+      ]
+    );
+
+    res.json({ success: true, id: result.rows[0].id, created_at: result.rows[0].created_at });
+  } catch (e) {
+    console.error('Upload assessment task error:', e);
+    res.status(500).json({ error: 'Failed to save assessment task.' });
   }
 });
 
