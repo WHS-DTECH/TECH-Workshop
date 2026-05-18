@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Profile – Workshop</title>
+  <title>My Profile â€“ Workshop</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="shortcut icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -17,10 +17,16 @@
       <a href="/" class="brand">Workshop</a>
       <nav class="main-nav" aria-label="Primary">
         <a href="/">Browse Activities</a>
+        <div class="nav-dropdown nav-upload">
+          <button class="nav-dropdown-btn">Upload ▾</button>
+          <div class="nav-dropdown-panel">
+            <a href="/upload_activity.html">Upload Activity</a>
+            <a href="/upload_url_idea.html">Upload URL Idea</a>
+          </div>
+        </div>
         <a href="/suggest_activity.html">Suggest Activity</a>
-        <a href="/upload_activity.html">Upload Activity</a>
         <div class="nav-dropdown" id="adminMenu" style="display:none">
-          <button class="nav-dropdown-btn">Admin ▾</button>
+          <button class="nav-dropdown-btn">Admin â–¾</button>
           <div class="nav-dropdown-panel">
             <a href="/admin_user_roles.html">User Role Management</a>
             <a href="/admin_permissions.html">Role Permissions</a>
@@ -148,10 +154,10 @@
             </div>
             <p class="connection-sub">Session is active and profile data is being resolved from your Google account.</p>
             <ul class="connection-checklist">
-              <li><span class="check green">✓</span> Session: Active</li>
-              <li><span class="check green">✓</span> Google account: Verified</li>
-              <li><span class="check green">✓</span> Profile data: Loaded</li>
-              <li><span class="check green">✓</span> Workshop access: Granted</li>
+              <li><span class="check green">âœ“</span> Session: Active</li>
+              <li><span class="check green">âœ“</span> Google account: Verified</li>
+              <li><span class="check green">âœ“</span> Profile data: Loaded</li>
+              <li><span class="check green">âœ“</span> Workshop access: Granted</li>
             </ul>
           </div>
         </section>
@@ -162,7 +168,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <p class="footer-copy">© 2026 Westland High School – Workshop Woodwork &amp; Furniture Hub</p>
+      <p class="footer-copy">Â© 2026 Westland High School â€“ Workshop Woodwork &amp; Furniture Hub</p>
       <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
     </div>
   </footer>
@@ -170,3 +176,4 @@
   <script src="profile.js"></script>
 </body>
 </html>
+

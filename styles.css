@@ -122,6 +122,8 @@ body {
 .nav-dropdown-panel a:hover { background: #edf4fb; color: var(--accent) !important; }
 
 .nav-dropdown.open .nav-dropdown-panel { display: block; }
+.nav-dropdown:hover .nav-dropdown-panel,
+.nav-dropdown:focus-within .nav-dropdown-panel { display: block; }
 
 .profile-actions {
   margin-left: auto;
@@ -1145,6 +1147,17 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.upload-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-url-panel {
+  max-width: 760px;
 }
 
 @media (max-width: 860px) {

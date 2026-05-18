@@ -199,6 +199,19 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_url_ideas (
+      id SERIAL PRIMARY KEY,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      activity_name VARCHAR(255) NOT NULL,
+      activity_type VARCHAR(150),
+      card_color VARCHAR(50),
+      idea_url TEXT NOT NULL,
+      short_description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // Seed default permissions if none exist
   const legacy = await isLegacyRolePermissionsSchema();
   if (!legacy) {
@@ -699,6 +712,44 @@ app.post('/api/upload-activity', requireAuth, uploadOutcomeImage.single('outcome
   } catch (e) {
     console.error('Upload activity error:', e);
     res.status(500).json({ error: 'Failed to save activity.' });
+  }
+});
+
+app.post('/api/upload-url-idea', requireAuth, async (req, res) => {
+  try {
+    const activityName = String(req.body.activity_name || '').trim();
+    const ideaUrl = String(req.body.idea_url || '').trim();
+    const activityType = String(req.body.activity_type || '').trim();
+    const cardColor = String(req.body.card_color || '').trim() || 'Teal';
+    const shortDescription = String(req.body.short_description || '').trim();
+
+    if (!activityName || !ideaUrl) {
+      return res.status(400).json({ error: 'Activity name and URL are required.' });
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(ideaUrl);
+    } catch {
+      return res.status(400).json({ error: 'Please enter a valid URL starting with http:// or https://.' });
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return res.status(400).json({ error: 'Only http and https URLs are allowed.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO uploaded_url_ideas
+        (created_by, activity_name, activity_type, card_color, idea_url, short_description)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, created_at`,
+      [req.user.id, activityName, activityType || null, cardColor, ideaUrl, shortDescription || null]
+    );
+
+    res.json({ success: true, id: result.rows[0].id, created_at: result.rows[0].created_at });
+  } catch (e) {
+    console.error('Upload URL idea error:', e);
+    res.status(500).json({ error: 'Failed to save URL idea.' });
   }
 });
 
