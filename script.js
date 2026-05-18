@@ -183,6 +183,16 @@ function createCard(activity) {
   const card = document.createElement("article");
   card.className = "activity-card";
 
+  // Determine upload type/category label (default: ACTIVITY)
+  let uploadType = "ACTIVITY";
+  if (activity.uploadType) {
+    uploadType = String(activity.uploadType).toUpperCase();
+  } else if (activity.type && activity.type.toLowerCase().includes("url")) {
+    uploadType = "URL IDEA";
+  } else if (activity.type && activity.type.toLowerCase().includes("assessment")) {
+    uploadType = "ASSESSMENT TASK";
+  }
+
   card.innerHTML = `
     <img class="thumb" src="${activity.image}" alt="${activity.title}" loading="lazy" />
     <div class="card-content">
@@ -195,6 +205,7 @@ function createCard(activity) {
       <h3 class="card-title">${activity.title}</h3>
       <p class="card-desc">${activity.description}</p>
     </div>
+    <div class="card-upload-type">${uploadType}</div>
   `;
 
   return card;
