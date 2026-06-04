@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upload URL Idea - Workshop</title>
+  <title>School Terms & Holidays - Workshop Admin</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="shortcut icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="admin.css" />
 </head>
 <body>
   <header class="top-strip">
@@ -25,7 +26,7 @@
             <a href="/upload_assessment_task.html">Upload Assessment Task</a>
           </div>
         </div>
-                <div class="nav-dropdown nav-planning">
+        <div class="nav-dropdown nav-planning">
           <button class="nav-dropdown-btn">Planning &#9662;</button>
           <div class="nav-dropdown-panel">
             <span class="nav-dropdown-placeholder">Term Planner (Coming Soon)</span>
@@ -46,7 +47,7 @@
       </nav>
       <div class="profile-actions">
         <div class="auth-area" id="authArea">
-          <a href="/auth/google?returnTo=/upload_url_idea.html" class="btn-google" id="googleSignIn">
+          <a href="/auth/google?returnTo=/admin_school_terms.html" class="btn-google" id="googleSignIn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
               <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
               <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
@@ -67,72 +68,36 @@
     </div>
   </header>
 
-  <main class="page-shell upload-shell">
-    <section class="upload-header upload-header-row">
-      <div>
-        <h1>Upload URL Idea</h1>
-        <p>Create a simplified card with an external URL and assign it to URL Idea.</p>
-      </div>
-      <a href="/" class="btn btn-light">Back to Hub</a>
-    </section>
+  <main class="page-shell admin-shell">
+    <div id="accessDenied" class="access-denied" style="display:none">
+      <h2>Access Denied</h2>
+      <p>You need to be signed in as Admin or Lead Teacher to view this page.</p>
+      <a href="/" class="btn btn-primary">Back to Hub</a>
+    </div>
 
-    <section class="upload-alert" id="uploadUrlAlert" data-type="warning">
-      Not signed in. Sign in with your school Google account before saving.
-    </section>
-
-    <section class="upload-panel upload-url-panel">
-      <form id="uploadUrlIdeaForm" novalidate>
-        <h2>New URL Idea</h2>
-
-        <label>
-          <span>Activity Name</span>
-          <input type="text" name="activity_name" id="urlIdeaName" required />
-        </label>
-
-        <label>
-          <span>Type</span>
-          <input type="text" name="activity_type" placeholder="Machine Sewing, Embroidery..." />
-        </label>
-
-        <label>
-          <span>Card Color</span>
-          <select name="card_color">
-            <option>Teal</option>
-            <option>Blue</option>
-            <option>Green</option>
-            <option>Violet</option>
-            <option>Orange</option>
-            <option>Slate</option>
-          </select>
-        </label>
-
-        <label>
-          <span>URL (Shown On Card)</span>
-          <input type="url" name="idea_url" placeholder="https://example.com/idea" required />
-        </label>
-
-        <label>
-          <span>Short Description</span>
-          <textarea name="short_description" rows="4"></textarea>
-        </label>
-
-        <div class="upload-actions">
-          <button type="submit" class="btn btn-primary" id="saveUrlIdeaBtn" disabled>Save URL Idea</button>
-          <button type="button" class="btn btn-light" id="cancelUrlIdeaBtn">Cancel</button>
+    <div id="adminContent" style="display:none">
+      <div class="admin-header-row">
+        <div>
+          <h1 class="admin-title">School Terms &amp; Holidays</h1>
+          <p class="admin-subtitle">Live content loaded from the Ministry of Education terms and holidays page.</p>
         </div>
-      </form>
-    </section>
+        <div class="admin-header-actions">
+          <a href="/" class="admin-btn admin-btn-secondary">Back to Hub</a>
+        </div>
+      </div>
+
+      <section class="admin-card">
+        <div class="terms-toolbar">
+          <button id="refreshTermsBtn" class="admin-btn admin-btn-primary" type="button">Refresh Data</button>
+          <a href="https://www.education.govt.nz/school-terms-and-holidays-dates" target="_blank" rel="noopener" class="admin-btn admin-btn-secondary">Open Source Page</a>
+        </div>
+        <p id="termsMeta" class="terms-meta">Loading latest term and holiday dates...</p>
+        <div id="termsStatus" class="admin-msg" style="display:none"></div>
+        <div id="termsContent" class="terms-view"></div>
+      </section>
+    </div>
   </main>
 
-  <script src="upload_url_idea.js"></script>
+  <script src="admin_school_terms.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

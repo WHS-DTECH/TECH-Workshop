@@ -418,6 +418,20 @@ async function requireAdmin(req, res, next) {
   }
 }
 
+async function requireAdminOrLead(req, res, next) {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const result = await pool.query(
+      "SELECT 1 FROM user_roles WHERE user_id = $1 AND role = ANY($2::text[]) LIMIT 1",
+      [req.user.id, ['Admin', 'Lead Teacher']]
+    );
+    if (result.rows.length > 0) return next();
+    return res.status(403).json({ error: 'Admin or Lead Teacher access required' });
+  } catch (e) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 // Start Google login
@@ -477,6 +491,53 @@ app.get('/api/user', (req, res) => {
 // Protected example route
 app.get('/api/protected', requireAuth, (req, res) => {
   res.json({ message: `Welcome, ${req.user.name}!` });
+});
+
+app.get('/api/admin/school-terms', requireAuth, requireAdminOrLead, async (req, res) => {
+  const sourceUrl = 'https://www.education.govt.nz/school-terms-and-holidays-dates';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(sourceUrl, {
+      signal: controller.signal,
+      headers: {
+        'user-agent': 'WHS-Workshop-TermsFetcher/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Source responded with ${response.status}`);
+    }
+
+    const rawHtml = await response.text();
+    const mainMatch = rawHtml.match(/<main[\s\S]*?<\/main>/i)
+      || rawHtml.match(/<article[\s\S]*?<\/article>/i)
+      || rawHtml.match(/<body[\s\S]*?<\/body>/i);
+
+    let contentHtml = mainMatch ? mainMatch[0] : rawHtml;
+
+    contentHtml = contentHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<(iframe|object|embed)[\s\S]*?<\/\1>/gi, '')
+      .replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+
+    contentHtml = contentHtml
+      .replace(/href="\/(?!\/)/gi, 'href="https://www.education.govt.nz/')
+      .replace(/src="\/(?!\/)/gi, 'src="https://www.education.govt.nz/');
+
+    res.json({
+      sourceUrl,
+      fetchedAt: new Date().toISOString(),
+      html: contentHtml,
+    });
+  } catch (error) {
+    console.error('School terms fetch error:', error);
+    res.status(502).json({ error: 'Failed to load school terms from the Ministry website.' });
+  } finally {
+    clearTimeout(timeout);
+  }
 });
 
 // ─── Admin: Role Management ──────────────────────────────────────────────────
