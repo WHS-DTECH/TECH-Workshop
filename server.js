@@ -493,13 +493,51 @@ app.get('/api/protected', requireAuth, (req, res) => {
   res.json({ message: `Welcome, ${req.user.name}!` });
 });
 
-app.get('/api/admin/school-terms', requireAuth, requireAdminOrLead, async (req, res) => {
-  const sourceUrl = 'https://www.education.govt.nz/school-terms-and-holidays-dates';
+const SCHOOL_TERMS_SOURCE_URL = 'https://www.education.govt.nz/school-terms-and-holidays-dates';
+
+function stripHtmlTags(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function decodeBasicEntities(text) {
+  return String(text || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function sanitizeMinistryHtml(rawHtml) {
+  const mainMatch = rawHtml.match(/<main[\s\S]*?<\/main>/i)
+    || rawHtml.match(/<article[\s\S]*?<\/article>/i)
+    || rawHtml.match(/<body[\s\S]*?<\/body>/i);
+
+  let contentHtml = mainMatch ? mainMatch[0] : rawHtml;
+
+  contentHtml = contentHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<(iframe|object|embed)[\s\S]*?<\/\1>/gi, '')
+    .replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+
+  return contentHtml
+    .replace(/href="\/(?!\/)/gi, 'href="https://www.education.govt.nz/')
+    .replace(/src="\/(?!\/)/gi, 'src="https://www.education.govt.nz/');
+}
+
+async function fetchMinistryTermsRawHtml() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const response = await fetch(sourceUrl, {
+    const response = await fetch(SCHOOL_TERMS_SOURCE_URL, {
       signal: controller.signal,
       headers: {
         'user-agent': 'WHS-Workshop-TermsFetcher/1.0'
@@ -510,33 +548,125 @@ app.get('/api/admin/school-terms', requireAuth, requireAdminOrLead, async (req, 
       throw new Error(`Source responded with ${response.status}`);
     }
 
-    const rawHtml = await response.text();
-    const mainMatch = rawHtml.match(/<main[\s\S]*?<\/main>/i)
-      || rawHtml.match(/<article[\s\S]*?<\/article>/i)
-      || rawHtml.match(/<body[\s\S]*?<\/body>/i);
+    return await response.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
-    let contentHtml = mainMatch ? mainMatch[0] : rawHtml;
+function parseMinistryTermDates(rawHtml) {
+  const monthIndex = {
+    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+  };
 
-    contentHtml = contentHtml
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<(iframe|object|embed)[\s\S]*?<\/\1>/gi, '')
-      .replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  const cleanText = decodeBasicEntities(stripHtmlTags(rawHtml));
+  const yearMatch = cleanText.match(/school terms and holidays[^0-9]*(20\d{2})/i);
+  const targetYear = yearMatch ? Number.parseInt(yearMatch[1], 10) : new Date().getFullYear();
 
-    contentHtml = contentHtml
-      .replace(/href="\/(?!\/)/gi, 'href="https://www.education.govt.nz/')
-      .replace(/src="\/(?!\/)/gi, 'src="https://www.education.govt.nz/');
+  function buildDate(day, monthName, explicitYear) {
+    const month = monthIndex[String(monthName || '').toLowerCase()];
+    if (Number.isNaN(day) || month === undefined) return null;
+    const year = explicitYear ? Number.parseInt(explicitYear, 10) : targetYear;
+    const dt = new Date(Date.UTC(year, month, day));
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function toIso(dt) {
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function firstMondayOnOrAfter(dt) {
+    const out = new Date(dt.getTime());
+    while (out.getUTCDay() !== 1) {
+      out.setUTCDate(out.getUTCDate() + 1);
+    }
+    return out;
+  }
+
+  function formatWeekRange(start, end) {
+    const fmt = new Intl.DateTimeFormat('en-NZ', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+    return `Mon ${fmt.format(start)} - Fri ${fmt.format(end)}`;
+  }
+
+  const terms = [];
+  const dateRegex = /(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+(20\d{2}))?/gi;
+
+  for (let termNo = 1; termNo <= 4; termNo++) {
+    const idx = cleanText.search(new RegExp(`Term\\s*${termNo}\\b`, 'i'));
+    if (idx < 0) continue;
+
+    const chunk = cleanText.slice(idx, idx + 900);
+    const foundDates = [];
+    let m;
+    while ((m = dateRegex.exec(chunk)) !== null) {
+      const day = Number.parseInt(m[1], 10);
+      const dt = buildDate(day, m[2], m[3]);
+      if (dt) foundDates.push(dt);
+    }
+
+    const uniqueDates = [...new Map(foundDates.map(d => [toIso(d), d])).values()]
+      .sort((a, b) => a - b);
+
+    if (uniqueDates.length < 2) continue;
+
+    const startDate = uniqueDates[0];
+    const endDate = uniqueDates[uniqueDates.length - 1];
+    const weekStart = firstMondayOnOrAfter(startDate);
+    const weeks = [];
+
+    for (let i = 0, cursor = new Date(weekStart.getTime()); i < 20 && cursor <= endDate; i++) {
+      const weekEnd = new Date(cursor.getTime());
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 4);
+      weeks.push({
+        week: i + 1,
+        startDate: toIso(cursor),
+        endDate: toIso(weekEnd),
+        label: formatWeekRange(cursor, weekEnd),
+      });
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    }
+
+    terms.push({
+      term: termNo,
+      startDate: toIso(startDate),
+      endDate: toIso(endDate),
+      weeks,
+    });
+  }
+
+  return { year: targetYear, terms };
+}
+
+app.get('/api/admin/school-terms', requireAuth, requireAdminOrLead, async (req, res) => {
+  try {
+    const rawHtml = await fetchMinistryTermsRawHtml();
+    const contentHtml = sanitizeMinistryHtml(rawHtml);
 
     res.json({
-      sourceUrl,
+      sourceUrl: SCHOOL_TERMS_SOURCE_URL,
       fetchedAt: new Date().toISOString(),
       html: contentHtml,
     });
   } catch (error) {
     console.error('School terms fetch error:', error);
     res.status(502).json({ error: 'Failed to load school terms from the Ministry website.' });
-  } finally {
-    clearTimeout(timeout);
+  }
+});
+
+app.get('/api/planning/term-dates', async (req, res) => {
+  try {
+    const rawHtml = await fetchMinistryTermsRawHtml();
+    const parsed = parseMinistryTermDates(rawHtml);
+
+    res.json({
+      sourceUrl: SCHOOL_TERMS_SOURCE_URL,
+      fetchedAt: new Date().toISOString(),
+      ...parsed,
+    });
+  } catch (error) {
+    console.error('Term dates parse error:', error);
+    res.status(502).json({ error: 'Failed to fetch term dates.' });
   }
 });
 

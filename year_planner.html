@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workshop Woodwork Hub</title>
+  <title>Year Planner - Workshop</title>
   <link rel="icon" href="images/favicon.ico" sizes="any" />
   <link rel="shortcut icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,7 +25,7 @@
             <a href="/upload_assessment_task.html">Upload Assessment Task</a>
           </div>
         </div>
-                <div class="nav-dropdown nav-planning">
+        <div class="nav-dropdown nav-planning">
           <button class="nav-dropdown-btn">Planning &#9662;</button>
           <div class="nav-dropdown-panel">
             <a href="/year_planner.html">Year Planner</a>
@@ -46,7 +46,7 @@
       </nav>
       <div class="profile-actions">
         <div class="auth-area" id="authArea">
-          <a href="/auth/google" class="btn-google" id="googleSignIn">
+          <a href="/auth/google?returnTo=/year_planner.html" class="btn-google" id="googleSignIn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
               <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
               <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
@@ -68,93 +68,36 @@
   </header>
 
   <main class="page-shell">
-    <section class="hero-panel" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">WOODWORK &amp; FURNITURE HUB</p>
-        <h1 id="hero-title">Workshop Activity Book</h1>
-        <p>
-          Explore practical workshop tasks students are completing this term, from joinery basics and timber prep
-          to furniture builds and finishing.
-        </p>
-        <div class="hero-actions">
-          <button class="btn btn-primary" onclick="location.href='/suggest_activity.html'">Suggest an Activity</button>
-          <span class="counter" id="activityCounter">0 activities in the student library</span>
+    <section class="panel">
+      <div class="planner-head">
+        <div>
+          <h1 class="planner-title">Year Planner</h1>
+          <p class="planner-subtitle">Weekly planning table generated from Ministry term dates.</p>
         </div>
+        <button id="refreshPlannerBtn" class="btn btn-primary" type="button">Refresh Term Dates</button>
       </div>
-      <div class="hero-shape" aria-hidden="true"></div>
-    </section>
+      <p id="plannerMeta" class="planner-meta">Loading term dates...</p>
+      <div id="plannerStatus" class="upload-alert" data-type="saving">Loading...</div>
 
-    <section class="panel" aria-labelledby="this-week-title">
-      <div class="panel-heading">
-        <h2 id="this-week-title">Activities Running This Week: 3 - 9 May</h2>
+      <div class="planner-table-wrap">
+        <table class="planner-table">
+          <thead>
+            <tr>
+              <th>Term</th>
+              <th>Weeks</th>
+              <th>Unit Standard</th>
+              <th>Unit Code</th>
+              <th>Level</th>
+              <th>Version</th>
+              <th>Credits</th>
+            </tr>
+          </thead>
+          <tbody id="plannerBody"></tbody>
+        </table>
       </div>
-      <div id="thisWeekGrid" class="card-grid card-grid-this-week"></div>
-    </section>
-
-    <section class="panel" aria-labelledby="library-title">
-      <div class="panel-controls">
-        <div class="title-row">
-          <h2 id="library-title">Activity Library Students Can Choose</h2>
-          <div class="library-stats" id="libraryStats">0 shown</div>
-        </div>
-
-        <div class="filter-row">
-          <label class="field">
-            <span>Search</span>
-            <input type="search" id="searchInput" placeholder="Search activities (e.g. stool, laminate, joints)" />
-          </label>
-          <label class="field field-compact">
-            <span>Year Level</span>
-            <select id="yearFilter">
-              <option value="all">All levels</option>
-              <option value="Year 9">Year 9</option>
-              <option value="Year 10">Year 10</option>
-              <option value="Year 11">Year 11</option>
-              <option value="Year 12">Year 12</option>
-            </select>
-          </label>
-          <label class="field field-compact">
-            <span>Type</span>
-            <select id="typeFilter">
-              <option value="all">All types</option>
-              <option value="Build">Build</option>
-              <option value="Repair">Repair</option>
-              <option value="Design">Design</option>
-              <option value="Finishing">Finishing</option>
-            </select>
-          </label>
-          <label class="field field-compact">
-            <span>Sort</span>
-            <select id="sortSelect">
-              <option value="name">Name (A-Z)</option>
-              <option value="duration">Duration (short-long)</option>
-              <option value="skill">Skill (beginner-advanced)</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <div id="libraryGrid" class="card-grid card-grid-library"></div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <p class="footer-copy">© 2026 Westland High School – Workshop Woodwork &amp; Furniture Hub</p>
-      <a href="/suggest_activity.html" class="btn btn-suggest-footer">Suggest an Activity</a>
-    </div>
-  </footer>
-
-  <script src="script.js"></script>
+  <script src="year_planner.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-

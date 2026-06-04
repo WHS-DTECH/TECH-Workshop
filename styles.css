@@ -1172,6 +1172,80 @@ body {
   max-width: 980px;
 }
 
+.planner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.planner-title {
+  margin: 0;
+  font-family: "Bebas Neue", sans-serif;
+  letter-spacing: 0.04em;
+  font-size: clamp(1.8rem, 2.7vw, 2.4rem);
+  color: #14436c;
+}
+
+.planner-subtitle {
+  margin: 4px 0 0;
+  color: #416483;
+  font-size: 0.82rem;
+}
+
+.planner-meta {
+  margin: 0 0 10px;
+  font-size: 0.76rem;
+  color: #456684;
+}
+
+.planner-table-wrap {
+  overflow-x: auto;
+}
+
+.planner-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #b4cadc;
+}
+
+.planner-table th,
+.planner-table td {
+  border: 1px solid #b4cadc;
+  padding: 8px 10px;
+  vertical-align: top;
+  font-size: 0.78rem;
+  color: #213f5c;
+}
+
+.planner-table th {
+  background: #edf4fb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.planner-table td[contenteditable="true"] {
+  min-width: 120px;
+  background: #fbfdff;
+}
+
+.week-range {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  color: #537291;
+}
+
+.planner-empty {
+  text-align: center;
+  color: #5b7893;
+  padding: 20px !important;
+}
+
 .checkbox-line {
   flex-direction: row !important;
   align-items: center;
