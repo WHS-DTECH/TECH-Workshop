@@ -328,8 +328,8 @@ passport.use(new GoogleStrategy({
   try {
     const googleId = profile.id;
     const email = (profile.emails && profile.emails[0] && profile.emails[0].value || '').trim().toLowerCase();
-    const name = profile.displayName;
-    const picture = profile.photos[0].value;
+    const name = String(profile.displayName || '').trim() || email;
+    const picture = (profile.photos && profile.photos[0] && profile.photos[0].value) || null;
     const hostedDomain = String(profile._json && profile._json.hd || '').trim().toLowerCase();
     const emailVerified = Boolean(profile._json && profile._json.email_verified);
     const emailDomain = email.includes('@') ? email.split('@')[1] : '';
@@ -345,17 +345,28 @@ passport.use(new GoogleStrategy({
       }
     }
 
-    // Check if user already exists
+    // Resolve existing account by either Google ID or email to avoid unique-email conflicts.
     let result = await pool.query(
-      'SELECT * FROM users WHERE google_id = $1',
-      [googleId]
+      'SELECT * FROM users WHERE google_id = $1 OR email = $2 LIMIT 1',
+      [googleId, email]
     );
 
     if (result.rows.length === 0) {
-      // New user — insert into database
       result = await pool.query(
         'INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *',
         [googleId, email, name, picture]
+      );
+    } else {
+      const existing = result.rows[0];
+      result = await pool.query(
+        `UPDATE users
+         SET google_id = $1,
+             email = $2,
+             name = $3,
+             picture = $4
+         WHERE id = $5
+         RETURNING *`,
+        [googleId, email, name, picture, existing.id]
       );
     }
 
