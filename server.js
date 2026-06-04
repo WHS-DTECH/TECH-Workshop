@@ -84,6 +84,26 @@ const ROLE_SLUG_TO_TITLE = Object.fromEntries(
   Object.entries(ROLE_TITLE_TO_SLUG).map(([title, slug]) => [slug, title])
 );
 
+function buildOAuthCallbackUrl(req) {
+  // Prefer explicit env callback, but normalize to the active host to avoid
+  // session/state mismatches when multiple domains are used.
+  const configured = String(process.env.CALLBACK_URL || '').trim();
+  const activeOrigin = `${req.protocol}://${req.get('host')}`;
+
+  if (!configured) {
+    return `${activeOrigin}/auth/callback`;
+  }
+
+  try {
+    const parsed = new URL(configured);
+    parsed.protocol = req.protocol;
+    parsed.host = req.get('host');
+    return parsed.toString();
+  } catch {
+    return `${activeOrigin}/auth/callback`;
+  }
+}
+
 function toRoleTitle(slugOrTitle) {
   return ROLE_SLUG_TO_TITLE[slugOrTitle] || slugOrTitle;
 }
@@ -385,22 +405,37 @@ app.get('/auth/google', (req, res, next) => {
   if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
     req.session.returnTo = returnTo;
   }
-  next();
-}, passport.authenticate('google', {
-  scope: ['profile', 'email'],
-  state: true,
-  hd: allowedEmailDomains.size === 1 ? [...allowedEmailDomains][0] : undefined,
-}));
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: true,
+    callbackURL: buildOAuthCallbackUrl(req),
+    hd: allowedEmailDomains.size === 1 ? [...allowedEmailDomains][0] : undefined,
+  })(req, res, next);
+});
 
 // Google callback
 app.get('/auth/callback',
-  passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }),
+  (req, res, next) => {
+    passport.authenticate('google', {
+      failureRedirect: '/?error=auth_failed',
+      callbackURL: buildOAuthCallbackUrl(req),
+    })(req, res, next);
+  },
   (req, res) => {
-    const returnTo = req.session.returnTo;
-    delete req.session.returnTo;
+    const returnTo = req.session && req.session.returnTo;
+    if (req.session) delete req.session.returnTo;
     res.redirect(returnTo || '/');
   }
 );
+
+// Convert unexpected OAuth errors to a controlled redirect instead of a 500 page.
+app.use((err, req, res, next) => {
+  if (req.path === '/auth/callback') {
+    console.error('OAuth callback error:', err && err.message ? err.message : err);
+    return res.redirect('/?error=auth_callback');
+  }
+  next(err);
+});
 
 // Logout
 app.get('/auth/logout', (req, res) => {
