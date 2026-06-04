@@ -576,64 +576,80 @@ function parseMinistryTermDates(rawHtml) {
     return dt.toISOString().slice(0, 10);
   }
 
-  function firstMondayOnOrAfter(dt) {
-    const out = new Date(dt.getTime());
-    while (out.getUTCDay() !== 1) {
-      out.setUTCDate(out.getUTCDate() + 1);
-    }
-    return out;
-  }
-
   function formatWeekRange(start, end) {
     const fmt = new Intl.DateTimeFormat('en-NZ', { timeZone: 'UTC', day: 'numeric', month: 'short' });
     return `Mon ${fmt.format(start)} - Fri ${fmt.format(end)}`;
   }
 
   const terms = [];
-  const dateRegex = /(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+(20\d{2}))?/gi;
 
-  for (let termNo = 1; termNo <= 4; termNo++) {
-    const idx = cleanText.search(new RegExp(`Term\\s*${termNo}\\b`, 'i'));
-    if (idx < 0) continue;
+  // Split content into per-term sections so dates from other terms do not leak in.
+  const headingRegex = /Term\s*(\d)\s*\(([^)]*)\)/gi;
+  const headings = [];
+  let hm;
+  while ((hm = headingRegex.exec(cleanText)) !== null) {
+    headings.push({
+      term: Number.parseInt(hm[1], 10),
+      meta: hm[2] || '',
+      index: hm.index,
+      headingEnd: headingRegex.lastIndex,
+    });
+  }
 
-    const chunk = cleanText.slice(idx, idx + 900);
+  for (let i = 0; i < headings.length; i++) {
+    const current = headings[i];
+    const next = headings[i + 1];
+    const sectionText = cleanText.slice(current.headingEnd, next ? next.index : cleanText.length);
+
+    const sectionDateRegex = /(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+(20\d{2}))?/gi;
     const foundDates = [];
-    let m;
-    while ((m = dateRegex.exec(chunk)) !== null) {
-      const day = Number.parseInt(m[1], 10);
-      const dt = buildDate(day, m[2], m[3]);
+    let dm;
+    while ((dm = sectionDateRegex.exec(sectionText)) !== null) {
+      const day = Number.parseInt(dm[1], 10);
+      const dt = buildDate(day, dm[2], dm[3]);
       if (dt) foundDates.push(dt);
     }
 
     const uniqueDates = [...new Map(foundDates.map(d => [toIso(d), d])).values()]
       .sort((a, b) => a - b);
 
-    if (uniqueDates.length < 2) continue;
+    if (!uniqueDates.length) continue;
 
     const startDate = uniqueDates[0];
     const endDate = uniqueDates[uniqueDates.length - 1];
-    const weekStart = firstMondayOnOrAfter(startDate);
-    const weeks = [];
+    const weekCountMatch = String(current.meta || '').match(/(\d+)\s*weeks?/i);
+    const explicitWeekCount = weekCountMatch ? Number.parseInt(weekCountMatch[1], 10) : null;
 
-    for (let i = 0, cursor = new Date(weekStart.getTime()); i < 20 && cursor <= endDate; i++) {
+    const weeks = [];
+    const weekLimit = explicitWeekCount && explicitWeekCount > 0 ? explicitWeekCount : 20;
+    let cursor = new Date(startDate.getTime());
+
+    for (let w = 0; w < weekLimit; w++) {
+      const weekStart = new Date(cursor.getTime());
       const weekEnd = new Date(cursor.getTime());
       weekEnd.setUTCDate(weekEnd.getUTCDate() + 4);
+
+      if (!explicitWeekCount && weekStart > endDate) break;
+
       weeks.push({
-        week: i + 1,
-        startDate: toIso(cursor),
+        week: w + 1,
+        startDate: toIso(weekStart),
         endDate: toIso(weekEnd),
-        label: formatWeekRange(cursor, weekEnd),
+        label: formatWeekRange(weekStart, weekEnd),
       });
+
       cursor.setUTCDate(cursor.getUTCDate() + 7);
     }
 
     terms.push({
-      term: termNo,
+      term: current.term,
       startDate: toIso(startDate),
       endDate: toIso(endDate),
       weeks,
     });
   }
+
+  terms.sort((a, b) => a.term - b.term);
 
   return { year: targetYear, terms };
 }
