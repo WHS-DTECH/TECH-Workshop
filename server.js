@@ -54,6 +54,11 @@ const uploadAssessmentImages = multer({
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const appDatabaseUrl = process.env.APP_DATABASE_URL || process.env.DATABASE_URL;
+const sessionDatabaseUrl = process.env.SESSION_DATABASE_URL || appDatabaseUrl;
+if (!appDatabaseUrl) {
+  throw new Error('Missing database URL. Set APP_DATABASE_URL or DATABASE_URL.');
+}
 const siteUrl = process.env.SITE_URL || '';
 const callbackUrl = process.env.CALLBACK_URL || '';
 const isSecureDeployment = /^https:\/\//i.test(siteUrl) || /^https:\/\//i.test(callbackUrl);
@@ -66,7 +71,13 @@ const allowedEmailDomains = new Set(configuredAllowedDomains.length ? configured
 
 // Neon database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: appDatabaseUrl,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Optional separate database for session storage.
+const sessionPool = new Pool({
+  connectionString: sessionDatabaseUrl,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -304,7 +315,7 @@ app.use(express.static(path.join(__dirname)));
 
 // Session stored in Neon database
 app.use(session({
-  store: new pgSession({ pool, tableName: 'session' }),
+  store: new pgSession({ pool: sessionPool, tableName: 'session' }),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
