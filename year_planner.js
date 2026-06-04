@@ -40,6 +40,36 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+const TERM_HEADER_ROWS = {
+  1: {
+    term: '1',
+    weeks: '10',
+    unitStandard: 'Construct free-hand drawings for use in furniture making',
+    unitCode: '14995',
+    level: '2',
+    version: '3',
+    credits: '4',
+  },
+  2: {
+    term: '2 - 3',
+    weeks: '20',
+    unitStandard: 'Use and maintain hand tools for furniture making',
+    unitCode: '2199',
+    level: '2',
+    version: '4',
+    credits: '4',
+  },
+  4: {
+    term: '4',
+    weeks: '3',
+    unitStandard: 'Set and operate a sanding machine to sand shaped furniture components',
+    unitCode: '9786',
+    level: '2',
+    version: '4',
+    credits: '2',
+  },
+};
+
 function renderPlanner(terms) {
   const body = document.getElementById('plannerBody');
 
@@ -51,12 +81,32 @@ function renderPlanner(terms) {
   const rows = [];
   for (const term of terms) {
     const weeks = Array.isArray(term.weeks) ? term.weeks : [];
-    const span = Math.max(1, weeks.length);
+    const header = TERM_HEADER_ROWS[term.term] || {
+      term: String(term.term),
+      weeks: String(weeks.length || ''),
+      unitStandard: '',
+      unitCode: '',
+      level: '',
+      version: '',
+      credits: '',
+    };
+
+    rows.push(`
+      <tr class="planner-term-header">
+        <td>${esc(header.term)}</td>
+        <td>${esc(header.weeks)}</td>
+        <td>${esc(header.unitStandard)}</td>
+        <td>${esc(header.unitCode)}</td>
+        <td>${esc(header.level)}</td>
+        <td>${esc(header.version)}</td>
+        <td>${esc(header.credits)}</td>
+      </tr>
+    `);
 
     if (!weeks.length) {
       rows.push(`
         <tr>
-          <td>${esc(term.term)}</td>
+          <td></td>
           <td>Week 1</td>
           <td contenteditable="true"></td>
           <td contenteditable="true"></td>
@@ -68,10 +118,10 @@ function renderPlanner(terms) {
       continue;
     }
 
-    weeks.forEach((week, index) => {
+    weeks.forEach((week) => {
       rows.push(`
         <tr>
-          ${index === 0 ? `<td rowspan="${span}">${esc(term.term)}</td>` : ''}
+          <td></td>
           <td>Week ${esc(week.week)}<br /><span class="week-range">${esc(week.label)}</span></td>
           <td contenteditable="true"></td>
           <td contenteditable="true"></td>

@@ -1228,6 +1228,17 @@ body {
   font-weight: 800;
 }
 
+.planner-term-header td {
+  background: #eef4fb;
+  font-weight: 700;
+  color: #1d4264;
+}
+
+.planner-term-header td:nth-child(3) {
+  text-align: center;
+  font-weight: 600;
+}
+
 .planner-table td[contenteditable="true"] {
   min-width: 120px;
   background: #fbfdff;
