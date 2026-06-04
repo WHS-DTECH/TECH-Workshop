@@ -338,6 +338,15 @@ body {
   color: #2f587a;
   background: #e2eef8;
   border: 1px solid #a8c4dc;
+.nav-dropdown-placeholder {
+  display: block;
+  padding: 8px 12px;
+  color: #6a85a0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: default;
+  white-space: nowrap;
+}
   border-radius: 999px;
   padding: 3px 8px;
 }
