@@ -71,6 +71,17 @@ const TERM_HEADER_ROWS = {
 };
 
 const TERM_EXTRA_HEADER_ROWS = {
+  1: [
+    {
+      term: '',
+      weeks: '',
+      unitStandard: 'Recognise and confirm furniture job specifications',
+      unitCode: '2216',
+      level: '2',
+      version: '4',
+      credits: '2',
+    },
+  ],
   2: [
     {
       term: '',
