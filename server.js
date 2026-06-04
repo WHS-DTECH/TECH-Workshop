@@ -651,7 +651,16 @@ function parseMinistryTermDates(rawHtml) {
 
   terms.sort((a, b) => a.term - b.term);
 
-  return { year: targetYear, terms };
+  // Keep only one block per term number (the first parsed block for that term).
+  const uniqueTerms = [];
+  const seenTerms = new Set();
+  for (const t of terms) {
+    if (seenTerms.has(t.term)) continue;
+    seenTerms.add(t.term);
+    uniqueTerms.push(t);
+  }
+
+  return { year: targetYear, terms: uniqueTerms };
 }
 
 app.get('/api/admin/school-terms', requireAuth, requireAdminOrLead, async (req, res) => {

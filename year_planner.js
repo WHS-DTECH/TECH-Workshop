@@ -70,6 +70,20 @@ const TERM_HEADER_ROWS = {
   },
 };
 
+const TERM_EXTRA_HEADER_ROWS = {
+  2: [
+    {
+      term: '',
+      weeks: '',
+      unitStandard: 'Construct hand joints for furniture',
+      unitCode: '18917',
+      level: '2',
+      version: '2',
+      credits: '3',
+    },
+  ],
+};
+
 function renderPlanner(terms) {
   const body = document.getElementById('plannerBody');
 
@@ -78,8 +92,16 @@ function renderPlanner(terms) {
     return;
   }
 
-  const rows = [];
+  const uniqueTerms = [];
+  const seen = new Set();
   for (const term of terms) {
+    if (seen.has(term.term)) continue;
+    seen.add(term.term);
+    uniqueTerms.push(term);
+  }
+
+  const rows = [];
+  for (const term of uniqueTerms) {
     const weeks = Array.isArray(term.weeks) ? term.weeks : [];
     const header = TERM_HEADER_ROWS[term.term] || {
       term: String(term.term),
@@ -102,6 +124,21 @@ function renderPlanner(terms) {
         <td>${esc(header.credits)}</td>
       </tr>
     `);
+
+    const extraHeaderRows = TERM_EXTRA_HEADER_ROWS[term.term] || [];
+    for (const extra of extraHeaderRows) {
+      rows.push(`
+        <tr class="planner-term-header">
+          <td>${esc(extra.term)}</td>
+          <td>${esc(extra.weeks)}</td>
+          <td>${esc(extra.unitStandard)}</td>
+          <td>${esc(extra.unitCode)}</td>
+          <td>${esc(extra.level)}</td>
+          <td>${esc(extra.version)}</td>
+          <td>${esc(extra.credits)}</td>
+        </tr>
+      `);
+    }
 
     if (!weeks.length) {
       rows.push(`
