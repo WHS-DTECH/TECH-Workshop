@@ -153,7 +153,11 @@ function parseBulletNodes(text) {
   const stack = [{ indent: -1, nodes: root }];
 
   for (const rawLine of lines) {
-    if (!rawLine.trim()) continue;
+    if (!rawLine.trim()) {
+      // Treat blank lines as section breaks so the next bullet can restart at top level.
+      stack.length = 1;
+      continue;
+    }
 
     const match = rawLine.match(/^(\s*)(?:[-*•]|\d+[.)])?\s*(.+)$/);
     if (!match) continue;
