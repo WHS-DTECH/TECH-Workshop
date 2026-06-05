@@ -131,6 +131,7 @@ function renderSubTopics() {
         <strong>Sub-Topic ID:</strong> ${esc(st.id)}<br />
         <strong>Parent ID:</strong> ${esc(st.parentId)}<br />
         <strong>Parent Name:</strong> ${esc(getTopicNameById(st.parentId) || 'Unknown')}<br />
+        <strong>Sub-Topic Name:</strong> ${esc(st.name || 'Untitled Sub-Topic')}<br />
         <strong>Content:</strong> ${esc(st.details)}
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteSubTopic('${esc(st.id)}')">Delete</button>
@@ -230,6 +231,7 @@ document.getElementById('topicForm').addEventListener('submit', (e) => {
 document.getElementById('subTopicForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const parentId = document.getElementById('parentTopicId').value;
+  const name = document.getElementById('subTopicName').value.trim();
   const details = document.getElementById('subTopicDetails').value.trim();
 
   if (!parentId) {
@@ -242,6 +244,11 @@ document.getElementById('subTopicForm').addEventListener('submit', (e) => {
     return;
   }
 
+  if (!name) {
+    setStatus('subTopicAlert', 'error', 'Sub-topic name cannot be empty.');
+    return;
+  }
+
   if (!topicsStore.topics.some(t => t.id === parentId)) {
     setStatus('subTopicAlert', 'error', `Parent topic ID "${parentId}" not found.`);
     return;
@@ -251,6 +258,7 @@ document.getElementById('subTopicForm').addEventListener('submit', (e) => {
   topicsStore.subTopics.push({
     id: subTopicId,
     parentId,
+    name,
     details,
     createdAt: new Date().toISOString(),
   });

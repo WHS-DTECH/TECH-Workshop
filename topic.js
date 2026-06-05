@@ -92,7 +92,13 @@ function loadTopicGroupsData() {
       if (children.length) {
         streams.push({
           year: 'Sub-Topics',
-          items: children.map(st => st.details),
+          items: children.map(st => {
+            const subName = String(st.name || '').trim();
+            const subDetails = String(st.details || '').trim();
+            if (subName && subDetails) return `${subName}: ${subDetails}`;
+            if (subName) return subName;
+            return subDetails;
+          }).filter(Boolean),
         });
       }
 
