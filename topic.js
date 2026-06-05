@@ -80,17 +80,14 @@ function loadTopicGroupsData() {
 
     return topics.map(topic => {
       const children = subTopics.filter(st => st.parentId === topic.id);
-      const subTopicsForTopic = children
-        .map(st => ({
-          name: String(st.name || '').trim() || 'Untitled Sub-Topic',
-          details: String(st.details || ''),
-        }))
-        .filter(st => st.name || st.details);
+      const subTopicNames = children
+        .map(st => String(st.name || '').trim() || 'Untitled Sub-Topic')
+        .filter(Boolean);
 
       return {
         type: topic.id,
         title: topic.name || 'Untitled Topic',
-        subTopics: subTopicsForTopic,
+        subTopicNames,
       };
     });
   } catch {
@@ -112,8 +109,7 @@ function matchesSearch(group) {
   const haystack = [
     group.title,
     group.type,
-    ...(group.subTopics || []).map(st => st.name),
-    ...(group.subTopics || []).map(st => st.details),
+    ...(group.subTopicNames || []),
   ].join(' ').toLowerCase();
 
   return haystack.includes(q);
@@ -124,108 +120,10 @@ function matchesType(group) {
   return group.type === topicState.type;
 }
 
-function renderTopicTree(streams) {
-  return `
-    <ul class="topic-tree">
-      ${streams.map(stream => `
-        <li>
-          <span class="topic-stream">${esc(stream.year)}</span>
-          <ul>
-            ${stream.items.map(item => `<li><span class="topic-item">${esc(item)}</span></li>`).join('')}
-          </ul>
-        </li>
-      `).join('')}
-    </ul>
-  `;
-}
-
 function renderSubTopicNameList(subTopicNames) {
   return `
     <ul class="topic-tree">
       ${subTopicNames.map(name => `<li><span class="topic-item">${esc(name)}</span></li>`).join('')}
-    </ul>
-  `;
-}
-
-function parseBulletNodes(text) {
-  const lines = String(text || '').split(/\r?\n/);
-  const root = [];
-  const stack = [{ indent: -1, nodes: root }];
-  let colonHeadingNode = null;
-
-  for (const rawLine of lines) {
-    if (!rawLine.trim()) {
-      // Treat blank lines as section breaks so the next bullet can restart at top level.
-      stack.length = 1;
-      colonHeadingNode = null;
-      continue;
-    }
-
-    const match = rawLine.match(/^(\s*)(?:[-*•]|\d+[.)])?\s*(.+)$/);
-    if (!match) continue;
-
-    const indentRaw = match[1] || '';
-    const content = (match[2] || '').trim();
-    if (!content) continue;
-
-    const spaces = indentRaw.replace(/\t/g, '  ').length;
-    const indent = Math.floor(spaces / 2);
-    const node = { text: content, children: [] };
-    const isColonHeading = /:\s*$/.test(content);
-
-    // Heuristic for pasted bullet text: if top-level lines are not indented,
-    // treat lines ending with ':' as section headers and nest following peers.
-    if (indent === 0) {
-      if (isColonHeading) {
-        root.push(node);
-        colonHeadingNode = node;
-        stack.length = 1;
-        continue;
-      }
-
-      if (colonHeadingNode) {
-        colonHeadingNode.children.push(node);
-        continue;
-      }
-    }
-
-    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
-      stack.pop();
-    }
-
-    stack[stack.length - 1].nodes.push(node);
-    stack.push({ indent, nodes: node.children });
-  }
-
-  return root;
-}
-
-function renderBulletNodes(nodes) {
-  if (!nodes.length) return '';
-  return `<ul class="topic-detail-bullets">${nodes.map(node => `
-    <li>
-      <span>${esc(node.text)}</span>
-      ${node.children.length ? renderBulletNodes(node.children) : ''}
-    </li>
-  `).join('')}</ul>`;
-}
-
-function renderSubTopicDetails(details) {
-  const nodes = parseBulletNodes(details);
-  if (nodes.length) return renderBulletNodes(nodes);
-  if (!details.trim()) return '';
-  return `<div class="topic-detail-text">${esc(details).replace(/\n/g, '<br />')}</div>`;
-}
-
-function renderSubTopicList(subTopics) {
-  return `
-    <ul class="topic-tree">
-      ${subTopics.map(st => `
-        <li>
-          <span class="topic-item">${esc(st.name)}</span>
-          ${renderSubTopicDetails(st.details)}
-        </li>
-      `).join('')}
     </ul>
   `;
 }
@@ -257,8 +155,8 @@ function renderTopicGroups() {
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
       <h3>${esc(group.title)}</h3>
-      ${group.subTopics && group.subTopics.length
-        ? renderSubTopicList(group.subTopics)
+      ${group.subTopicNames && group.subTopicNames.length
+        ? renderSubTopicNameList(group.subTopicNames)
         : '<div class="topic-empty">No sub-topics added for this topic yet.</div>'}
     </article>
   `).join('');
