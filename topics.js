@@ -46,11 +46,13 @@ function parseBulletNodes(text) {
   const lines = String(text || '').split(/\r?\n/);
   const root = [];
   const stack = [{ indent: -1, nodes: root }];
+  let colonHeadingNode = null;
 
   for (const rawLine of lines) {
     if (!rawLine.trim()) {
       // Treat blank lines as section breaks so the next bullet can restart at top level.
       stack.length = 1;
+      colonHeadingNode = null;
       continue;
     }
 
@@ -64,6 +66,23 @@ function parseBulletNodes(text) {
     const spaces = indentRaw.replace(/\t/g, '  ').length;
     const indent = Math.floor(spaces / 2);
     const node = { text: content, children: [] };
+    const isColonHeading = /:\s*$/.test(content);
+
+    // Heuristic for pasted bullet text: if top-level lines are not indented,
+    // treat lines ending with ':' as section headers and nest following peers.
+    if (indent === 0) {
+      if (isColonHeading) {
+        root.push(node);
+        colonHeadingNode = node;
+        stack.length = 1;
+        continue;
+      }
+
+      if (colonHeadingNode) {
+        colonHeadingNode.children.push(node);
+        continue;
+      }
+    }
 
     while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
       stack.pop();
