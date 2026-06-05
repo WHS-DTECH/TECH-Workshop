@@ -1194,6 +1194,38 @@ body {
   font-size: 0.82rem;
 }
 
+.planner-year-picker {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-year-picker span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #2e5578;
+}
+
+.planner-year-picker select {
+  min-width: 210px;
+  border: 1px solid #6ea3cd;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f4160;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  font-family: inherit;
+}
+
+.planner-year-picker select:focus {
+  outline: none;
+  border-color: #2f7dbe;
+  box-shadow: 0 0 0 3px rgba(47, 125, 190, 0.1);
+}
+
 .planner-meta {
   margin: 0 0 10px;
   font-size: 0.76rem;

@@ -21,6 +21,25 @@
         <div>
           <h1 class="planner-title">Year Planner</h1>
           <p class="planner-subtitle">Weekly planning table generated from Ministry term dates.</p>
+          <label class="planner-year-picker" for="plannerYearLevel">
+            <span>Year Level</span>
+            <select id="plannerYearLevel" name="planner_year_level" aria-label="Year level selector">
+              <option value="">All year levels</option>
+              <optgroup label="Junior">
+                <option value="Year 7">Year 7</option>
+                <option value="Year 8">Year 8</option>
+              </optgroup>
+              <optgroup label="Middle">
+                <option value="Year 9">Year 9</option>
+                <option value="Year 10">Year 10</option>
+              </optgroup>
+              <optgroup label="Senior">
+                <option value="Year 11">Year 11</option>
+                <option value="Year 12">Year 12</option>
+                <option value="Year 13">Year 13</option>
+              </optgroup>
+            </select>
+          </label>
         </div>
         <button id="refreshPlannerBtn" class="btn btn-primary" type="button">Refresh Term Dates</button>
       </div>
