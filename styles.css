@@ -1354,6 +1354,7 @@ body {
 }
 
 .topics-label input,
+.topics-label select,
 .topics-label textarea {
   border: 1px solid #6ea3cd;
   border-radius: 3px;
@@ -1370,6 +1371,7 @@ body {
 }
 
 .topics-label input:focus,
+.topics-label select:focus,
 .topics-label textarea:focus {
   outline: none;
   border-color: #2f7dbe;

@@ -51,6 +51,29 @@ function generateId() {
   return 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
+function renderParentTopicOptions() {
+  const select = document.getElementById('parentTopicId');
+  if (!select) return;
+
+  const currentValue = select.value;
+  const options = ['<option value="">Select a topic by name</option>'];
+
+  for (const topic of topicsStore.topics) {
+    options.push(`<option value="${esc(topic.id)}">${esc(topic.name)}</option>`);
+  }
+
+  select.innerHTML = options.join('');
+
+  if (currentValue && topicsStore.topics.some(t => t.id === currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+function getTopicNameById(topicId) {
+  const topic = topicsStore.topics.find(t => t.id === topicId);
+  return topic ? topic.name : '';
+}
+
 function renderTopics() {
   const container = document.getElementById('topicsDisplay');
   if (!topicsStore.topics.length) {
@@ -84,6 +107,7 @@ function renderSubTopics() {
       <div class="topics-item-header">
         <strong>Sub-Topic ID:</strong> ${esc(st.id)}<br />
         <strong>Parent ID:</strong> ${esc(st.parentId)}<br />
+        <strong>Parent Name:</strong> ${esc(getTopicNameById(st.parentId) || 'Unknown')}<br />
         <strong>Content:</strong> ${esc(st.details)}
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteSubTopic('${esc(st.id)}')">Delete</button>
@@ -96,6 +120,7 @@ function renderSubTopics() {
 function deleteTopic(topicId) {
   topicsStore.topics = topicsStore.topics.filter(t => t.id !== topicId);
   topicsStore.subTopics = topicsStore.subTopics.filter(st => st.parentId !== topicId);
+  renderParentTopicOptions();
   renderTopics();
   renderSubTopics();
   setStatus('topicAlert', 'success', 'Topic deleted.');
@@ -164,17 +189,18 @@ document.getElementById('topicForm').addEventListener('submit', (e) => {
   });
 
   document.getElementById('topicForm').reset();
+  renderParentTopicOptions();
   renderTopics();
   setStatus('topicAlert', 'success', `Topic added with ID: ${topicId}`);
 });
 
 document.getElementById('subTopicForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const parentId = document.getElementById('parentTopicId').value.trim();
+  const parentId = document.getElementById('parentTopicId').value;
   const details = document.getElementById('subTopicDetails').value.trim();
 
   if (!parentId) {
-    setStatus('subTopicAlert', 'error', 'Parent Topic ID is required.');
+    setStatus('subTopicAlert', 'error', 'Please select a parent topic.');
     return;
   }
 
@@ -203,5 +229,6 @@ document.getElementById('subTopicForm').addEventListener('submit', (e) => {
 
 wireDropdowns();
 hydrateUserState();
+renderParentTopicOptions();
 renderTopics();
 renderSubTopics();

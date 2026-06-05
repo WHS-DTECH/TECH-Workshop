@@ -50,8 +50,10 @@
         <h2 class="topics-section-title">Add Sub-Topic</h2>
         <form id="subTopicForm" novalidate>
           <label class="topics-label">
-            <span>Parent Topic ID</span>
-            <input type="text" id="parentTopicId" name="parent_topic_id" placeholder="Enter the topic ID" required />
+            <span>Parent Topic</span>
+            <select id="parentTopicId" name="parent_topic_id" required>
+              <option value="">Select a topic by name</option>
+            </select>
           </label>
 
           <label class="topics-label">
