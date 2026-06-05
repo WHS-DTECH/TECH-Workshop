@@ -80,37 +80,14 @@ function loadTopicGroupsData() {
 
     return topics.map(topic => {
       const children = subTopics.filter(st => st.parentId === topic.id);
-      const streams = [];
-
-      if (topic.details) {
-        streams.push({
-          year: 'Topic Overview',
-          items: [topic.details],
-        });
-      }
-
-      if (children.length) {
-        streams.push({
-          year: 'Sub-Topics',
-          items: children.map(st => {
-            const subName = String(st.name || '').trim();
-            const subDetails = String(st.details || '').trim();
-            if (subName && subDetails) return `${subName}: ${subDetails}`;
-            if (subName) return subName;
-            return subDetails;
-          }).filter(Boolean),
-        });
-      }
+      const subTopicNames = children
+        .map(st => String(st.name || '').trim() || String(st.details || '').trim())
+        .filter(Boolean);
 
       return {
         type: topic.id,
         title: topic.name || 'Untitled Topic',
-        plans: [
-          {
-            name: topic.name || 'Untitled Topic',
-            streams,
-          },
-        ],
+        subTopicNames,
       };
     });
   } catch {
@@ -132,9 +109,7 @@ function matchesSearch(group) {
   const haystack = [
     group.title,
     group.type,
-    ...group.plans.map(plan => plan.name),
-    ...group.plans.flatMap(plan => plan.streams.map(stream => stream.year)),
-    ...group.plans.flatMap(plan => plan.streams.flatMap(stream => stream.items)),
+    ...(group.subTopicNames || []),
   ].join(' ').toLowerCase();
 
   return haystack.includes(q);
@@ -156,6 +131,14 @@ function renderTopicTree(streams) {
           </ul>
         </li>
       `).join('')}
+    </ul>
+  `;
+}
+
+function renderSubTopicNameList(subTopicNames) {
+  return `
+    <ul class="topic-tree">
+      ${subTopicNames.map(name => `<li><span class="topic-item">${esc(name)}</span></li>`).join('')}
     </ul>
   `;
 }
@@ -187,10 +170,9 @@ function renderTopicGroups() {
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
       <h3>${esc(group.title)}</h3>
-      ${group.plans.map(plan => `
-        <div class="topic-plan-name">${esc(plan.name)}</div>
-        ${plan.streams.length ? renderTopicTree(plan.streams) : '<div class="topic-empty">No details added for this topic yet.</div>'}
-      `).join('')}
+      ${group.subTopicNames && group.subTopicNames.length
+        ? renderSubTopicNameList(group.subTopicNames)
+        : '<div class="topic-empty">No sub-topics added for this topic yet.</div>'}
     </article>
   `).join('');
 }
