@@ -241,4 +241,10 @@ async function hydrateUserState() {
 document.getElementById('refreshPlannerBtn').addEventListener('click', loadPlanner);
 wireDropdowns();
 hydrateUserState();
+
+const plannerYearLevelEl = document.getElementById('plannerYearLevel');
+if (plannerYearLevelEl && !plannerYearLevelEl.value) {
+  plannerYearLevelEl.value = 'Year 11';
+}
+
 loadPlanner();
