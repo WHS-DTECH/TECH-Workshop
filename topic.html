@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Topic Pathway - Workshop</title>
+  <link rel="icon" href="images/favicon.ico" sizes="any" />
+  <link rel="shortcut icon" href="images/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="/navbar-loader.js"></script>
+</head>
+<body>
+  <header class="top-strip"></header>
+
+  <main class="page-shell">
+    <section class="panel">
+      <h1 class="topic-page-title">Topics Pathway</h1>
+      <p class="topic-page-subtitle">Browse unit plans by type, year level, and stream.</p>
+
+      <section class="topic-filter-panel">
+        <h2 class="topic-filter-title">Browse Filters</h2>
+        <div class="topic-filter-wrap">
+          <label class="topic-filter-label">
+            <span>Search Unit Plans</span>
+            <input
+              type="search"
+              id="topicSearch"
+              placeholder="Search title, topic type, year level, or stream"
+              aria-label="Search unit plans"
+            />
+          </label>
+
+          <div class="topic-filter-label">
+            <span>Topic Type</span>
+            <div class="topic-type-toggle" role="tablist" aria-label="Topic type filter">
+              <button class="topic-type-btn active" data-type="all" type="button" aria-pressed="true">All topics</button>
+              <button class="topic-type-btn" data-type="electronics" type="button" aria-pressed="false">Electronics</button>
+              <button class="topic-type-btn" data-type="programming" type="button" aria-pressed="false">Programming</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="topic-pathway-panel" style="margin-top:12px">
+        <h2 class="topic-pathway-title">All Topics Pathway</h2>
+        <p class="topic-pathway-subtitle">Main unit plans are grouped by Topic Type, with sub-unit coverage listed beneath each plan.</p>
+        <div id="topicGroups" class="topic-groups"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="topic.js"></script>
+</body>
+</html>
