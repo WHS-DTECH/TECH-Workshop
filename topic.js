@@ -80,14 +80,17 @@ function loadTopicGroupsData() {
 
     return topics.map(topic => {
       const children = subTopics.filter(st => st.parentId === topic.id);
-      const subTopicNames = children
-        .map(st => String(st.name || '').trim() || String(st.details || '').trim())
-        .filter(Boolean);
+      const subTopicsForTopic = children
+        .map(st => ({
+          name: String(st.name || '').trim() || 'Untitled Sub-Topic',
+          details: String(st.details || ''),
+        }))
+        .filter(st => st.name || st.details);
 
       return {
         type: topic.id,
         title: topic.name || 'Untitled Topic',
-        subTopicNames,
+        subTopics: subTopicsForTopic,
       };
     });
   } catch {
@@ -109,7 +112,8 @@ function matchesSearch(group) {
   const haystack = [
     group.title,
     group.type,
-    ...(group.subTopicNames || []),
+    ...(group.subTopics || []).map(st => st.name),
+    ...(group.subTopics || []).map(st => st.details),
   ].join(' ').toLowerCase();
 
   return haystack.includes(q);
@@ -143,6 +147,66 @@ function renderSubTopicNameList(subTopicNames) {
   `;
 }
 
+function parseBulletNodes(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const root = [];
+  const stack = [{ indent: -1, nodes: root }];
+
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+
+    const match = rawLine.match(/^(\s*)(?:[-*•]|\d+[.)])?\s*(.+)$/);
+    if (!match) continue;
+
+    const indentRaw = match[1] || '';
+    const content = (match[2] || '').trim();
+    if (!content) continue;
+
+    const spaces = indentRaw.replace(/\t/g, '  ').length;
+    const indent = Math.floor(spaces / 2);
+    const node = { text: content, children: [] };
+
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+      stack.pop();
+    }
+
+    stack[stack.length - 1].nodes.push(node);
+    stack.push({ indent, nodes: node.children });
+  }
+
+  return root;
+}
+
+function renderBulletNodes(nodes) {
+  if (!nodes.length) return '';
+  return `<ul class="topic-detail-bullets">${nodes.map(node => `
+    <li>
+      <span>${esc(node.text)}</span>
+      ${node.children.length ? renderBulletNodes(node.children) : ''}
+    </li>
+  `).join('')}</ul>`;
+}
+
+function renderSubTopicDetails(details) {
+  const nodes = parseBulletNodes(details);
+  if (nodes.length) return renderBulletNodes(nodes);
+  if (!details.trim()) return '';
+  return `<div class="topic-detail-text">${esc(details).replace(/\n/g, '<br />')}</div>`;
+}
+
+function renderSubTopicList(subTopics) {
+  return `
+    <ul class="topic-tree">
+      ${subTopics.map(st => `
+        <li>
+          <span class="topic-item">${esc(st.name)}</span>
+          ${renderSubTopicDetails(st.details)}
+        </li>
+      `).join('')}
+    </ul>
+  `;
+}
+
 function renderTopicTypeButtons() {
   const toggle = document.getElementById('topicTypeToggle');
   if (!toggle) return;
@@ -170,8 +234,8 @@ function renderTopicGroups() {
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
       <h3>${esc(group.title)}</h3>
-      ${group.subTopicNames && group.subTopicNames.length
-        ? renderSubTopicNameList(group.subTopicNames)
+      ${group.subTopics && group.subTopics.length
+        ? renderSubTopicList(group.subTopics)
         : '<div class="topic-empty">No sub-topics added for this topic yet.</div>'}
     </article>
   `).join('');

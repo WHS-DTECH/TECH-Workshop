@@ -42,6 +42,52 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+function parseBulletNodes(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const root = [];
+  const stack = [{ indent: -1, nodes: root }];
+
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+
+    const match = rawLine.match(/^(\s*)(?:[-*•]|\d+[.)])?\s*(.+)$/);
+    if (!match) continue;
+
+    const indentRaw = match[1] || '';
+    const content = (match[2] || '').trim();
+    if (!content) continue;
+
+    const spaces = indentRaw.replace(/\t/g, '  ').length;
+    const indent = Math.floor(spaces / 2);
+    const node = { text: content, children: [] };
+
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+      stack.pop();
+    }
+
+    stack[stack.length - 1].nodes.push(node);
+    stack.push({ indent, nodes: node.children });
+  }
+
+  return root;
+}
+
+function renderBulletNodes(nodes) {
+  if (!nodes.length) return '';
+  return `<ul class="subtopic-detail-list">${nodes.map(node => `
+    <li>
+      <span>${esc(node.text)}</span>
+      ${node.children.length ? renderBulletNodes(node.children) : ''}
+    </li>
+  `).join('')}</ul>`;
+}
+
+function renderSubTopicDetails(details) {
+  const nodes = parseBulletNodes(details);
+  if (nodes.length) return renderBulletNodes(nodes);
+  return esc(details).replace(/\n/g, '<br />');
+}
+
 const topicsStore = {
   topics: [],
   subTopics: [],
@@ -132,7 +178,7 @@ function renderSubTopics() {
         <strong>Parent ID:</strong> ${esc(st.parentId)}<br />
         <strong>Parent Name:</strong> ${esc(getTopicNameById(st.parentId) || 'Unknown')}<br />
         <strong>Sub-Topic Name:</strong> ${esc(st.name || 'Untitled Sub-Topic')}<br />
-        <strong>Content:</strong> ${esc(st.details)}
+        <strong>Details:</strong> ${renderSubTopicDetails(st.details)}
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteSubTopic('${esc(st.id)}')">Delete</button>
     </div>

@@ -1433,6 +1433,20 @@ body {
   color: #1d4264;
 }
 
+.subtopic-detail-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.subtopic-detail-list li {
+  margin: 2px 0;
+}
+
+.subtopic-detail-list ul {
+  margin-top: 3px;
+  padding-left: 18px;
+}
+
 .btn-sm {
   padding: 5px 10px;
   font-size: 0.72rem;
@@ -1633,6 +1647,27 @@ body {
 
 .topic-item {
   font-weight: 600;
+}
+
+.topic-detail-bullets {
+  margin: 5px 0 4px;
+  padding-left: 18px;
+}
+
+.topic-detail-bullets li {
+  margin: 2px 0;
+}
+
+.topic-detail-bullets ul {
+  margin-top: 3px;
+  padding-left: 18px;
+}
+
+.topic-detail-text {
+  margin-top: 4px;
+  color: #244a6d;
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
 .topic-empty {
