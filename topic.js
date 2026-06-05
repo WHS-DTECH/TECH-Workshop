@@ -80,14 +80,15 @@ function loadTopicGroupsData() {
 
     return topics.map(topic => {
       const children = subTopics.filter(st => st.parentId === topic.id);
-      const subTopicNames = children
-        .map(st => String(st.name || '').trim() || 'Untitled Sub-Topic')
-        .filter(Boolean);
+      const subTopicsForTopic = children.map(st => ({
+        id: String(st.id || ''),
+        name: String(st.name || '').trim() || 'Untitled Sub-Topic',
+      }));
 
       return {
         type: topic.id,
         title: topic.name || 'Untitled Topic',
-        subTopicNames,
+        subTopics: subTopicsForTopic,
       };
     });
   } catch {
@@ -109,7 +110,7 @@ function matchesSearch(group) {
   const haystack = [
     group.title,
     group.type,
-    ...(group.subTopicNames || []),
+    ...(group.subTopics || []).map(st => st.name),
   ].join(' ').toLowerCase();
 
   return haystack.includes(q);
@@ -120,10 +121,14 @@ function matchesType(group) {
   return group.type === topicState.type;
 }
 
-function renderSubTopicNameList(subTopicNames) {
+function renderSubTopicNameList(topicId, subTopics) {
   return `
-    <ul class="topic-tree">
-      ${subTopicNames.map(name => `<li><span class="topic-item">${esc(name)}</span></li>`).join('')}
+    <ul class="topic-subtopic-list">
+      ${subTopics.map(st => `
+        <li>
+          <a class="topic-subtopic-link" href="/subtopic.html?topicId=${encodeURIComponent(topicId)}&subTopicId=${encodeURIComponent(st.id)}">${esc(st.name)}</a>
+        </li>
+      `).join('')}
     </ul>
   `;
 }
@@ -155,8 +160,8 @@ function renderTopicGroups() {
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
       <h3>${esc(group.title)}</h3>
-      ${group.subTopicNames && group.subTopicNames.length
-        ? renderSubTopicNameList(group.subTopicNames)
+      ${group.subTopics && group.subTopics.length
+        ? renderSubTopicNameList(group.type, group.subTopics)
         : '<div class="topic-empty">No sub-topics added for this topic yet.</div>'}
     </article>
   `).join('');
