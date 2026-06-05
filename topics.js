@@ -62,6 +62,7 @@ function renderTopics() {
     <div class="topics-item">
       <div class="topics-item-header">
         <strong>ID:</strong> ${esc(topic.id)}<br />
+        <strong>Name:</strong> ${esc(topic.name)}<br />
         <strong>Content:</strong> ${esc(topic.details)}
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteTopic('${esc(topic.id)}')">Delete</button>
@@ -141,7 +142,13 @@ async function hydrateUserState() {
 
 document.getElementById('topicForm').addEventListener('submit', (e) => {
   e.preventDefault();
+  const name = document.getElementById('topicName').value.trim();
   const details = document.getElementById('topicDetails').value.trim();
+
+  if (!name) {
+    setStatus('topicAlert', 'error', 'Topic name cannot be empty.');
+    return;
+  }
 
   if (!details) {
     setStatus('topicAlert', 'error', 'Topic details cannot be empty.');
@@ -151,6 +158,7 @@ document.getElementById('topicForm').addEventListener('submit', (e) => {
   const topicId = generateId();
   topicsStore.topics.push({
     id: topicId,
+    name,
     details,
     createdAt: new Date().toISOString(),
   });
