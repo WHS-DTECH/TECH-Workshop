@@ -59,36 +59,60 @@ async function hydrateUserState() {
   }
 }
 
-const topicGroupsData = [
-  {
-    type: 'electronics',
-    title: 'Electronics',
-    plans: [
-      {
-        name: 'Electronics (Juniors)',
-        streams: [
-          { year: 'Juniors', items: ['Breadboard', 'Micro:bit'] },
-          { year: 'Middle', items: ['Soldering', 'Printed Circuit Boards (PCB)', 'Arduino'] },
-          { year: 'Senior', items: ['Assessment'] },
+const TOPICS_STORAGE_KEY = 'whs_topics_data_v1';
+
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function loadTopicGroupsData() {
+  try {
+    const raw = localStorage.getItem(TOPICS_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    const topics = Array.isArray(parsed.topics) ? parsed.topics : [];
+    const subTopics = Array.isArray(parsed.subTopics) ? parsed.subTopics : [];
+
+    return topics.map(topic => {
+      const children = subTopics.filter(st => st.parentId === topic.id);
+      const streams = [];
+
+      if (topic.details) {
+        streams.push({
+          year: 'Topic Overview',
+          items: [topic.details],
+        });
+      }
+
+      if (children.length) {
+        streams.push({
+          year: 'Sub-Topics',
+          items: children.map(st => st.details),
+        });
+      }
+
+      return {
+        type: topic.id,
+        title: topic.name || 'Untitled Topic',
+        plans: [
+          {
+            name: topic.name || 'Untitled Topic',
+            streams,
+          },
         ],
-      },
-    ],
-  },
-  {
-    type: 'programming',
-    title: 'Programming',
-    plans: [
-      {
-        name: 'Programming (Middle)',
-        streams: [
-          { year: 'Juniors', items: ['Binary', 'Block Programming'] },
-          { year: 'Middle', items: ['Tutorial Programming', 'Project Programming'] },
-          { year: 'Senior', items: ['Assessment'] },
-        ],
-      },
-    ],
-  },
-];
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+let topicGroupsData = loadTopicGroupsData();
 
 const topicState = {
   search: '',
@@ -120,14 +144,27 @@ function renderTopicTree(streams) {
     <ul class="topic-tree">
       ${streams.map(stream => `
         <li>
-          <span class="topic-stream">${stream.year}</span>
+          <span class="topic-stream">${esc(stream.year)}</span>
           <ul>
-            ${stream.items.map(item => `<li><span class="topic-item">${item}</span></li>`).join('')}
+            ${stream.items.map(item => `<li><span class="topic-item">${esc(item)}</span></li>`).join('')}
           </ul>
         </li>
       `).join('')}
     </ul>
   `;
+}
+
+function renderTopicTypeButtons() {
+  const toggle = document.getElementById('topicTypeToggle');
+  if (!toggle) return;
+
+  const buttons = ['<button class="topic-type-btn active" data-type="all" type="button" aria-pressed="true">All topics</button>'];
+
+  for (const group of topicGroupsData) {
+    buttons.push(`<button class="topic-type-btn" data-type="${esc(group.type)}" type="button" aria-pressed="false">${esc(group.title)}</button>`);
+  }
+
+  toggle.innerHTML = buttons.join('');
 }
 
 function renderTopicGroups() {
@@ -143,10 +180,10 @@ function renderTopicGroups() {
 
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
-      <h3>${group.title}</h3>
+      <h3>${esc(group.title)}</h3>
       ${group.plans.map(plan => `
-        <div class="topic-plan-name">${plan.name}</div>
-        ${renderTopicTree(plan.streams)}
+        <div class="topic-plan-name">${esc(plan.name)}</div>
+        ${plan.streams.length ? renderTopicTree(plan.streams) : '<div class="topic-empty">No details added for this topic yet.</div>'}
       `).join('')}
     </article>
   `).join('');
@@ -180,5 +217,7 @@ function wireTopicControls() {
 
 wireDropdowns();
 hydrateUserState();
+topicGroupsData = loadTopicGroupsData();
+renderTopicTypeButtons();
 wireTopicControls();
 renderTopicGroups();

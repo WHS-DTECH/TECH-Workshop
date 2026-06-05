@@ -47,6 +47,28 @@ const topicsStore = {
   subTopics: [],
 };
 
+const TOPICS_STORAGE_KEY = 'whs_topics_data_v1';
+
+function saveTopicsStore() {
+  try {
+    localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(topicsStore));
+  } catch {
+    // no-op
+  }
+}
+
+function loadTopicsStore() {
+  try {
+    const raw = localStorage.getItem(TOPICS_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    topicsStore.topics = Array.isArray(parsed.topics) ? parsed.topics : [];
+    topicsStore.subTopics = Array.isArray(parsed.subTopics) ? parsed.subTopics : [];
+  } catch {
+    // no-op
+  }
+}
+
 function generateId() {
   return 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
@@ -120,6 +142,7 @@ function renderSubTopics() {
 function deleteTopic(topicId) {
   topicsStore.topics = topicsStore.topics.filter(t => t.id !== topicId);
   topicsStore.subTopics = topicsStore.subTopics.filter(st => st.parentId !== topicId);
+  saveTopicsStore();
   renderParentTopicOptions();
   renderTopics();
   renderSubTopics();
@@ -128,6 +151,7 @@ function deleteTopic(topicId) {
 
 function deleteSubTopic(subTopicId) {
   topicsStore.subTopics = topicsStore.subTopics.filter(st => st.id !== subTopicId);
+  saveTopicsStore();
   renderSubTopics();
   setStatus('subTopicAlert', 'success', 'Sub-topic deleted.');
 }
@@ -188,6 +212,7 @@ document.getElementById('topicForm').addEventListener('submit', (e) => {
     createdAt: new Date().toISOString(),
   });
 
+  saveTopicsStore();
   document.getElementById('topicForm').reset();
   renderParentTopicOptions();
   renderTopics();
@@ -222,6 +247,7 @@ document.getElementById('subTopicForm').addEventListener('submit', (e) => {
     createdAt: new Date().toISOString(),
   });
 
+  saveTopicsStore();
   document.getElementById('subTopicForm').reset();
   renderSubTopics();
   setStatus('subTopicAlert', 'success', `Sub-topic added with ID: ${subTopicId}`);
@@ -229,6 +255,7 @@ document.getElementById('subTopicForm').addEventListener('submit', (e) => {
 
 wireDropdowns();
 hydrateUserState();
+loadTopicsStore();
 renderParentTopicOptions();
 renderTopics();
 renderSubTopics();
