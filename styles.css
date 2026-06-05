@@ -1347,6 +1347,20 @@ body {
   margin-bottom: 12px;
 }
 
+.topics-row {
+  display: grid;
+  gap: 10px;
+}
+
+.topics-row-topic-meta {
+  grid-template-columns: minmax(240px, 420px) minmax(180px, 220px);
+  align-items: end;
+}
+
+.topics-row-topic-meta .topics-label {
+  margin-bottom: 0;
+}
+
 .topics-label span {
   font-size: 0.78rem;
   font-weight: 600;
@@ -1368,6 +1382,12 @@ body {
 .topics-label textarea {
   resize: vertical;
   min-height: 100px;
+}
+
+@media (max-width: 760px) {
+  .topics-row-topic-meta {
+    grid-template-columns: 1fr;
+  }
 }
 
 .topics-label input:focus,

@@ -28,10 +28,26 @@
       <section class="topics-card">
         <h2 class="topics-section-title">Add Topic</h2>
         <form id="topicForm" novalidate>
-          <label class="topics-label">
-            <span>Topic Name</span>
-            <input type="text" id="topicName" name="topic_name" placeholder="Enter topic name" required />
-          </label>
+          <div class="topics-row topics-row-topic-meta">
+            <label class="topics-label">
+              <span>Topic Name</span>
+              <input type="text" id="topicName" name="topic_name" placeholder="Enter topic name" required />
+            </label>
+
+            <label class="topics-label">
+              <span>Year Level</span>
+              <select id="topicYearLevel" name="topic_year_level" required>
+                <option value="">Select year level</option>
+                <option value="Year 7">Year 7</option>
+                <option value="Year 8">Year 8</option>
+                <option value="Year 9">Year 9</option>
+                <option value="Year 10">Year 10</option>
+                <option value="Year 11">Year 11</option>
+                <option value="Year 12">Year 12</option>
+                <option value="Year 13">Year 13</option>
+              </select>
+            </label>
+          </div>
 
           <label class="topics-label">
             <span>Topic Details (Text)</span>
