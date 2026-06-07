@@ -64,6 +64,17 @@ const uploadPlannerDocx = multer({
   }
 });
 
+const uploadTopicsDocx = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const isDocx = file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || String(file.originalname || '').toLowerCase().endsWith('.docx');
+    if (isDocx) cb(null, true);
+    else cb(new Error('Only DOCX files are allowed'));
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const appDatabaseUrl = process.env.APP_DATABASE_URL || process.env.DATABASE_URL;
@@ -590,6 +601,100 @@ function extractDocxTableRows(documentXml) {
   });
 }
 
+  function extractDocxParagraphTexts(documentXml) {
+    const paragraphMatches = [...String(documentXml || '').matchAll(/<w:p(?:\s|>)[\s\S]*?<\/w:p>/gi)];
+
+    return paragraphMatches.map((paragraphMatch) => {
+      const paragraphXml = paragraphMatch[0];
+      const textMatches = [...paragraphXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi)];
+      const text = textMatches.map(match => match[1]).join(' ');
+
+      return decodeXmlEntities(text)
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }).filter(Boolean);
+  }
+
+  function deriveTopicTitle(paragraphs) {
+    const heading = paragraphs.find(paragraph => /^Unit Standard Topic:\s*(.+)$/i.test(paragraph));
+    if (heading) {
+      return heading.replace(/^Unit Standard Topic:\s*/i, '').trim();
+    }
+
+    return paragraphs[0] || 'Imported Topic';
+  }
+
+  function deriveYearLevelFromParagraphs(paragraphs, fallbackYearLevel = '') {
+    const text = paragraphs.join(' ');
+    const match = text.match(/\bYear\s*(\d{1,2})\b/i);
+    return (fallbackYearLevel || (match ? `Year ${match[1]}` : '') || '').trim();
+  }
+
+  async function parseTopicDocx(buffer, fallbackYearLevel = '') {
+    const zip = await JSZip.loadAsync(buffer);
+    const documentEntry = zip.file('word/document.xml');
+    if (!documentEntry) {
+      throw new Error('DOCX file is missing document.xml');
+    }
+
+    const documentXml = await documentEntry.async('string');
+    const paragraphs = extractDocxParagraphTexts(documentXml);
+
+    if (!paragraphs.length) {
+      throw new Error('The DOCX file does not contain readable topic text.');
+    }
+
+    const topicName = deriveTopicTitle(paragraphs);
+    const yearLevel = deriveYearLevelFromParagraphs(paragraphs, fallbackYearLevel);
+    const titleIndex = paragraphs.findIndex(paragraph => /^Unit Standard Topic:\s*(.+)$/i.test(paragraph));
+    const contentParagraphs = paragraphs.slice(titleIndex >= 0 ? titleIndex + 1 : 1);
+    const sectionPattern = /^(?:Week|Weeks|Sub-Topic|Subtopic)\s*(?:\d+(?:\s*[-–]\s*\d+)?)?\b\s*(.*)$/i;
+    const sections = [];
+    const introLines = [];
+    let currentSection = null;
+
+    for (const paragraph of contentParagraphs) {
+      const sectionMatch = paragraph.match(sectionPattern);
+      if (sectionMatch) {
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+
+        currentSection = {
+          name: paragraph.trim(),
+          detailsLines: [],
+        };
+        continue;
+      }
+
+      if (!currentSection) {
+        introLines.push(paragraph);
+        continue;
+      }
+
+      currentSection.detailsLines.push(paragraph);
+    }
+
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+
+    const topicDetails = introLines.length
+      ? introLines.join('\n')
+      : `Imported from ${topicName}${yearLevel ? ` (${yearLevel})` : ''}.`;
+
+    return {
+      topicName,
+      yearLevel,
+      topicDetails,
+      subTopics: sections.map(section => ({
+        name: section.name,
+        details: section.detailsLines.join('\n').trim(),
+      })).filter(section => section.name),
+    };
+  }
+
 async function upsertYearPlannerTemplate(yearLevel, fileName, planner, importedBy) {
   const result = await pool.query(
     `INSERT INTO year_planner_templates (year_level, file_name, planner, imported_by, imported_at)
@@ -848,6 +953,26 @@ app.post('/api/planning/import-year-planner', requireAuth, requireAdminOrLead, u
   } catch (error) {
     console.error('Year planner import error:', error);
     res.status(400).json({ error: error.message || 'Failed to import planner document.' });
+  }
+});
+
+app.post('/api/topics/import-docx', requireAuth, requireAdminOrLead, uploadTopicsDocx.single('topic_docx'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose a DOCX file to upload.' });
+    }
+
+    const fallbackYearLevel = String(req.body.year_level || '').trim();
+    const parsed = await parseTopicDocx(req.file.buffer, fallbackYearLevel);
+
+    res.json({
+      success: true,
+      fileName: req.file.originalname || 'topic-import.docx',
+      ...parsed,
+    });
+  } catch (error) {
+    console.error('Topic DOCX import error:', error);
+    res.status(400).json({ error: error.message || 'Failed to import topic document.' });
   }
 });
 
