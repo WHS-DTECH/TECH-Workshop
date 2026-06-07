@@ -43,6 +43,12 @@ const summaryEl = document.getElementById('plannerImportSummary');
 const openYearPlannerLink = document.getElementById('openYearPlannerLink');
 let canImportPlanner = false;
 
+const PLANNER_GROUP_DEFAULTS = {
+  Junior: 'Year 7',
+  Middle: 'Year 9',
+  Senior: 'Year 11',
+};
+
 function setAlert(type, message) {
   alertBox.dataset.type = type;
   alertBox.textContent = message;
@@ -133,7 +139,8 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const fileInput = document.getElementById('plannerDocxFile');
-  const yearLevel = document.getElementById('plannerUploadYearLevel').value;
+  const selectedYearLevel = document.getElementById('plannerUploadYearLevel').value;
+  const yearLevel = PLANNER_GROUP_DEFAULTS[selectedYearLevel] || selectedYearLevel;
   const file = fileInput.files[0];
 
   if (!file) {
@@ -166,10 +173,11 @@ form.addEventListener('submit', async (e) => {
     };
 
     setPreview(template, json.yearLevel);
-    setAlert('success', `Imported ${json.fileName} for ${json.yearLevel}. Open Year Planner and select ${json.yearLevel}.`);
+    const selectedLabel = selectedYearLevel === yearLevel ? json.yearLevel : `${selectedYearLevel} (${json.yearLevel})`;
+    setAlert('success', `Imported ${json.fileName} for ${selectedLabel}. Open Year Planner and select ${selectedLabel}.`);
     if (openYearPlannerLink) {
       openYearPlannerLink.href = `/year_planner.html?yearLevel=${encodeURIComponent(json.yearLevel)}`;
-      openYearPlannerLink.textContent = `Open Year Planner (${json.yearLevel})`;
+      openYearPlannerLink.textContent = `Open Year Planner (${selectedLabel})`;
     }
     form.reset();
     validateForm();

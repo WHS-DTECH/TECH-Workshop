@@ -145,6 +145,12 @@ const yearFilter = document.getElementById("yearFilter");
 const typeFilter = document.getElementById("typeFilter");
 const sortSelect = document.getElementById("sortSelect");
 
+const YEAR_LEVEL_GROUPS = {
+  Junior: ["Year 7", "Year 8"],
+  Middle: ["Year 9", "Year 10"],
+  Senior: ["Year 11", "Year 12", "Year 13"],
+};
+
 function buildPlaceholder(title, type) {
   const palette = {
     Build: ["#234d7c", "#3f89c9"],
@@ -218,7 +224,10 @@ function getFilteredLibrary() {
       activity.description.toLowerCase().includes(searchValue) ||
       activity.type.toLowerCase().includes(searchValue);
 
-    const matchesYear = selectedYear === "all" || activity.year === selectedYear;
+    const selectedYearIsGroup = Object.prototype.hasOwnProperty.call(YEAR_LEVEL_GROUPS, selectedYear);
+    const matchesYear = selectedYear === "all"
+      || activity.year === selectedYear
+      || (selectedYearIsGroup && YEAR_LEVEL_GROUPS[selectedYear].includes(activity.year));
     const matchesType = selectedType === "all" || activity.type === selectedType;
 
     return matchesSearch && matchesYear && matchesType;
