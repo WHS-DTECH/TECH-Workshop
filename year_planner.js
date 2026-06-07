@@ -101,6 +101,23 @@ let latestPlannerFetchedAt = '';
 let importedPlannerTemplates = {};
 const plannerYearLevelEl = document.getElementById('plannerYearLevel');
 
+const PLANNER_GROUP_DEFAULTS = {
+  Junior: 'Year 7',
+  Middle: 'Year 9',
+  Senior: 'Year 11',
+};
+
+function resolvePlannerSelection() {
+  const selectedValue = getSelectedYearLevel();
+  const resolvedYearLevel = PLANNER_GROUP_DEFAULTS[selectedValue] || selectedValue || 'Year 11';
+
+  return {
+    selectedValue,
+    resolvedYearLevel,
+    isGroupSelection: Object.prototype.hasOwnProperty.call(PLANNER_GROUP_DEFAULTS, selectedValue),
+  };
+}
+
 async function loadImportedPlannerTemplates() {
   try {
     const res = await fetch('/api/planning/year-planner-templates', { cache: 'no-store' });
@@ -241,17 +258,18 @@ function renderImportedPlanner(template) {
 
 function updatePlannerMeta() {
   const plannerMeta = document.getElementById('plannerMeta');
-  const selectedYearLevel = getSelectedYearLevel();
-  const importedTemplate = selectedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selectedYearLevel) : null;
+  const selection = resolvePlannerSelection();
+  const importedTemplate = selection.resolvedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selection.resolvedYearLevel) : null;
+  const selectionLabel = selection.isGroupSelection ? `${selection.selectedValue} (${selection.resolvedYearLevel})` : selection.resolvedYearLevel;
 
   if (importedTemplate) {
     const importedAt = importedTemplate.importedAt ? new Date(importedTemplate.importedAt).toLocaleString() : 'unknown time';
-    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | Imported planner: ${selectedYearLevel} | Last imported: ${importedAt}`;
+    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | Imported planner: ${selectionLabel} | Last imported: ${importedAt}`;
     return;
   }
 
-  if (selectedYearLevel !== 'Year 11') {
-    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | No imported planner found for ${selectedYearLevel}. Showing the standard Year 11 planner template.`;
+  if (selection.resolvedYearLevel !== 'Year 11') {
+    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | No imported planner found for ${selectionLabel}. Showing the standard Year 11 planner template.`;
     return;
   }
 
@@ -260,16 +278,16 @@ function updatePlannerMeta() {
 }
 
 function renderPlannerView() {
-  const selectedYearLevel = getSelectedYearLevel();
-  const importedTemplate = selectedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selectedYearLevel) : null;
+  const selection = resolvePlannerSelection();
+  const importedTemplate = selection.resolvedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selection.resolvedYearLevel) : null;
 
   if (importedTemplate) {
     renderImportedPlanner(importedTemplate.planner);
-    setStatus('success', `Imported planner loaded for ${selectedYearLevel}.`);
+    setStatus('success', `Imported planner loaded for ${selection.isGroupSelection ? selection.selectedValue : selection.resolvedYearLevel}.`);
   } else {
     renderTermDatePlanner(latestPlannerTerms);
-    if (selectedYearLevel !== 'Year 11') {
-      setStatus('warning', `No imported planner uploaded for ${selectedYearLevel} yet. Showing the standard planner template.`);
+    if (selection.resolvedYearLevel !== 'Year 11') {
+      setStatus('warning', `No imported planner uploaded for ${selection.isGroupSelection ? selection.selectedValue : selection.resolvedYearLevel} yet. Showing the standard planner template.`);
     } else {
       setStatus('success', 'Year planner updated from latest Ministry term dates.');
     }
@@ -342,7 +360,7 @@ if (plannerYearLevelEl && !plannerYearLevelEl.value) {
 
 const yearLevelFromQuery = new URLSearchParams(window.location.search).get('yearLevel');
 if (plannerYearLevelEl && yearLevelFromQuery) {
-  const allowedLevels = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
+  const allowedLevels = ['Junior', 'Middle', 'Senior', 'Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
   if (allowedLevels.includes(yearLevelFromQuery)) {
     plannerYearLevelEl.value = yearLevelFromQuery;
   }
