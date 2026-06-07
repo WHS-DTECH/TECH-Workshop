@@ -105,6 +105,12 @@ const topicState = {
   yearLevel: 'all',
 };
 
+const YEAR_LEVEL_GROUPS = {
+  Junior: ['Year 7', 'Year 8'],
+  Middle: ['Year 9', 'Year 10'],
+  Senior: ['Year 11', 'Year 12', 'Year 13'],
+};
+
 function matchesSearch(group) {
   const q = topicState.search.trim().toLowerCase();
   if (!q) return true;
@@ -125,8 +131,25 @@ function matchesType(group) {
 }
 
 function matchesYearLevel(group) {
-  if (topicState.yearLevel === 'all') return true;
-  return group.yearLevel === topicState.yearLevel;
+  const selectedLevel = topicState.yearLevel;
+  if (selectedLevel === 'all') return true;
+
+  const groupYearLevel = String(group.yearLevel || '').trim();
+  const selectedIsGroup = Object.prototype.hasOwnProperty.call(YEAR_LEVEL_GROUPS, selectedLevel);
+
+  if (selectedIsGroup) {
+    return YEAR_LEVEL_GROUPS[selectedLevel].includes(groupYearLevel) || groupYearLevel === selectedLevel;
+  }
+
+  if (groupYearLevel === selectedLevel) {
+    return true;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(YEAR_LEVEL_GROUPS, groupYearLevel)) {
+    return YEAR_LEVEL_GROUPS[groupYearLevel].includes(selectedLevel);
+  }
+
+  return false;
 }
 
 function renderSubTopicNameList(topicId, subTopics) {
