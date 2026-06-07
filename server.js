@@ -295,6 +295,16 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS year_planner_templates (
+      year_level VARCHAR(50) PRIMARY KEY,
+      file_name VARCHAR(255) NOT NULL,
+      planner JSONB NOT NULL,
+      imported_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // Seed default permissions if none exist
   const legacy = await isLegacyRolePermissionsSchema();
   if (!legacy) {
@@ -574,6 +584,32 @@ function extractDocxTableRows(documentXml) {
   });
 }
 
+async function upsertYearPlannerTemplate(yearLevel, fileName, planner, importedBy) {
+  const result = await pool.query(
+    `INSERT INTO year_planner_templates (year_level, file_name, planner, imported_by, imported_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (year_level)
+     DO UPDATE SET file_name = EXCLUDED.file_name,
+                   planner = EXCLUDED.planner,
+                   imported_by = EXCLUDED.imported_by,
+                   imported_at = CURRENT_TIMESTAMP
+     RETURNING year_level, file_name, planner, imported_at`,
+    [yearLevel, fileName, planner, importedBy || null]
+  );
+
+  return result.rows[0];
+}
+
+async function getYearPlannerTemplates() {
+  const result = await pool.query(
+    `SELECT year_level, file_name, planner, imported_at
+     FROM year_planner_templates
+     ORDER BY year_level`
+  );
+
+  return result.rows;
+}
+
 async function parsePlannerDocx(buffer) {
   const zip = await JSZip.loadAsync(buffer);
   const documentEntry = zip.file('word/document.xml');
@@ -772,6 +808,16 @@ app.get('/api/planning/term-dates', async (req, res) => {
   }
 });
 
+app.get('/api/planning/year-planner-templates', async (req, res) => {
+  try {
+    const templates = await getYearPlannerTemplates();
+    res.json({ templates });
+  } catch (error) {
+    console.error('Year planner templates fetch error:', error);
+    res.status(500).json({ error: 'Failed to load planner templates.' });
+  }
+});
+
 app.post('/api/planning/import-year-planner', requireAuth, requireAdminOrLead, uploadPlannerDocx.single('planner_docx'), async (req, res) => {
   try {
     const yearLevel = String(req.body.year_level || '').trim();
@@ -784,13 +830,14 @@ app.post('/api/planning/import-year-planner', requireAuth, requireAdminOrLead, u
     }
 
     const planner = await parsePlannerDocx(req.file.buffer);
+    const stored = await upsertYearPlannerTemplate(yearLevel, req.file.originalname, planner, req.user.id);
 
     res.json({
       success: true,
       yearLevel,
       fileName: req.file.originalname,
-      importedAt: new Date().toISOString(),
-      planner,
+      importedAt: stored.imported_at,
+      planner: stored.planner,
     });
   } catch (error) {
     console.error('Year planner import error:', error);

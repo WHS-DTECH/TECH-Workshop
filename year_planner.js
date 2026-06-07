@@ -95,30 +95,29 @@ const TERM_EXTRA_HEADER_ROWS = {
   ],
 };
 
-const YEAR_PLANNER_IMPORTS_KEY = 'whs_year_planner_imports_v1';
-
 let latestPlannerTerms = [];
 let latestPlannerSourceYear = '';
 let latestPlannerFetchedAt = '';
-let importedPlannerTemplates = loadImportedPlannerTemplates();
+let importedPlannerTemplates = {};
 const plannerYearLevelEl = document.getElementById('plannerYearLevel');
 
-function loadImportedPlannerTemplates() {
+async function loadImportedPlannerTemplates() {
   try {
-    const raw = localStorage.getItem(YEAR_PLANNER_IMPORTS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
+    const res = await fetch('/api/planning/year-planner-templates', { cache: 'no-store' });
+    const data = await res.json();
 
-function saveImportedPlannerTemplates() {
-  try {
-    localStorage.setItem(YEAR_PLANNER_IMPORTS_KEY, JSON.stringify(importedPlannerTemplates));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to load planner templates.');
+    }
+
+    const templates = Array.isArray(data.templates) ? data.templates : [];
+    importedPlannerTemplates = Object.fromEntries(templates.map(template => [template.year_level, {
+      fileName: template.file_name,
+      importedAt: template.imported_at,
+      planner: template.planner,
+    }]));
   } catch {
-    // no-op
+    importedPlannerTemplates = {};
   }
 }
 
@@ -283,17 +282,17 @@ async function loadPlanner() {
   setStatus('saving', 'Loading term dates...');
 
   try {
-    const res = await fetch('/api/planning/term-dates', { cache: 'no-store' });
-    const data = await res.json();
+    const termDatesRes = await fetch('/api/planning/term-dates', { cache: 'no-store' });
+    const data = await termDatesRes.json();
 
-    if (!res.ok) {
+    if (!termDatesRes.ok) {
       throw new Error(data.error || 'Failed to load term dates.');
     }
 
     latestPlannerTerms = Array.isArray(data.terms) ? data.terms : [];
     latestPlannerSourceYear = String(data.year || '').trim();
     latestPlannerFetchedAt = data.fetchedAt;
-    importedPlannerTemplates = loadImportedPlannerTemplates();
+    await loadImportedPlannerTemplates();
     renderPlannerView();
   } catch (error) {
     setStatus('error', error.message || 'Failed to load year planner data.');

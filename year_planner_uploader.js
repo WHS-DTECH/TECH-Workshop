@@ -34,7 +34,6 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-const YEAR_PLANNER_IMPORTS_KEY = 'whs_year_planner_imports_v1';
 const form = document.getElementById('plannerUploadForm');
 const alertBox = document.getElementById('plannerUploadAlert');
 const importBtn = document.getElementById('importPlannerBtn');
@@ -69,21 +68,6 @@ function setPreview(template, yearLevel) {
 
   summaryEl.textContent = `Imported ${template.rows.length} planner rows for ${yearLevel} from ${template.fileName || 'the uploaded document'}.`;
   previewPanel.style.display = 'block';
-}
-
-function loadPlannerImports() {
-  try {
-    const raw = localStorage.getItem(YEAR_PLANNER_IMPORTS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePlannerImports(imports) {
-  localStorage.setItem(YEAR_PLANNER_IMPORTS_KEY, JSON.stringify(imports));
 }
 
 async function hydrateUserState() {
@@ -175,15 +159,13 @@ form.addEventListener('submit', async (e) => {
       throw new Error(json.error || 'Failed to import planner document.');
     }
 
-    const imports = loadPlannerImports();
-    imports[json.yearLevel] = {
+    const template = {
       fileName: json.fileName,
       importedAt: json.importedAt,
       planner: json.planner,
     };
-    savePlannerImports(imports);
 
-    setPreview(imports[json.yearLevel], json.yearLevel);
+    setPreview(template, json.yearLevel);
     setAlert('success', `Imported ${json.fileName} for ${json.yearLevel}. Open Year Planner and select ${json.yearLevel}.`);
     if (openYearPlannerLink) {
       openYearPlannerLink.href = `/year_planner.html?yearLevel=${encodeURIComponent(json.yearLevel)}`;
