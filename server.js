@@ -8,6 +8,7 @@ const pgSession = require('connect-pg-simple')(session);
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const JSZip = require('jszip');
 const nodemailer = require('nodemailer');
 
 // Nodemailer transporter — uses EMAIL_USER + EMAIL_PASS from .env
@@ -49,6 +50,17 @@ const uploadAssessmentImages = multer({
     const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
     if (allowed.includes(file.mimetype)) cb(null, true);
     else cb(new Error('Only PNG and JPG images are allowed'));
+  }
+});
+
+const uploadPlannerDocx = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const isDocx = file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || String(file.originalname || '').toLowerCase().endsWith('.docx');
+    if (isDocx) cb(null, true);
+    else cb(new Error('Only DOCX files are allowed'));
   }
 });
 
@@ -532,6 +544,71 @@ function sanitizeMinistryHtml(rawHtml) {
     .replace(/src="\/(?!\/)/gi, 'src="https://www.education.govt.nz/');
 }
 
+function decodeXmlEntities(text) {
+  return String(text || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function extractDocxTableRows(documentXml) {
+  const tableMatch = String(documentXml || '').match(/<w:tbl[\s\S]*?<\/w:tbl>/i);
+  if (!tableMatch) return [];
+
+  const tableXml = tableMatch[0];
+  const rowMatches = [...tableXml.matchAll(/<w:tr[\s\S]*?<\/w:tr>/gi)];
+
+  return rowMatches.map((rowMatch) => {
+    const rowXml = rowMatch[0];
+    const cellMatches = [...rowXml.matchAll(/<w:tc[\s\S]*?<\/w:tc>/gi)];
+
+    return cellMatches.map((cellMatch) => {
+      const cellXml = cellMatch[0];
+      const textMatches = [...cellXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi)];
+      const text = textMatches.map(match => match[1]).join(' ');
+      return decodeXmlEntities(text).replace(/\s+/g, ' ').trim();
+    });
+  });
+}
+
+async function parsePlannerDocx(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentEntry = zip.file('word/document.xml');
+  if (!documentEntry) {
+    throw new Error('DOCX file is missing document.xml');
+  }
+
+  const documentXml = await documentEntry.async('string');
+  const tableRows = extractDocxTableRows(documentXml);
+
+  if (tableRows.length < 2) {
+    throw new Error('Planner table was not found in the DOCX file.');
+  }
+
+  const headerRow = tableRows[0];
+  if (!headerRow.length || !String(headerRow[0] || '').toLowerCase().includes('term')) {
+    throw new Error('The first table in the DOCX does not look like a planner table.');
+  }
+
+  const rows = tableRows.slice(1).map((cells) => ({
+    term: cells[0] || '',
+    weeks: cells[1] || '',
+    unitStandard: cells[2] || '',
+    unitCode: cells[3] || '',
+    level: cells[4] || '',
+    version: cells[5] || '',
+    credits: cells[6] || '',
+  })).filter(row => Object.values(row).some(Boolean));
+
+  return {
+    headerRow,
+    rows,
+  };
+}
+
 async function fetchMinistryTermsRawHtml() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -692,6 +769,32 @@ app.get('/api/planning/term-dates', async (req, res) => {
   } catch (error) {
     console.error('Term dates parse error:', error);
     res.status(502).json({ error: 'Failed to fetch term dates.' });
+  }
+});
+
+app.post('/api/planning/import-year-planner', requireAuth, requireAdminOrLead, uploadPlannerDocx.single('planner_docx'), async (req, res) => {
+  try {
+    const yearLevel = String(req.body.year_level || '').trim();
+    if (!yearLevel) {
+      return res.status(400).json({ error: 'Year level is required.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose a DOCX file to upload.' });
+    }
+
+    const planner = await parsePlannerDocx(req.file.buffer);
+
+    res.json({
+      success: true,
+      yearLevel,
+      fileName: req.file.originalname,
+      importedAt: new Date().toISOString(),
+      planner,
+    });
+  } catch (error) {
+    console.error('Year planner import error:', error);
+    res.status(400).json({ error: error.message || 'Failed to import planner document.' });
   }
 });
 

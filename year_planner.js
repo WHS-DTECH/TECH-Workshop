@@ -95,7 +95,42 @@ const TERM_EXTRA_HEADER_ROWS = {
   ],
 };
 
-function renderPlanner(terms) {
+const YEAR_PLANNER_IMPORTS_KEY = 'whs_year_planner_imports_v1';
+
+let latestPlannerTerms = [];
+let latestPlannerSourceYear = '';
+let latestPlannerFetchedAt = '';
+let importedPlannerTemplates = loadImportedPlannerTemplates();
+const plannerYearLevelEl = document.getElementById('plannerYearLevel');
+
+function loadImportedPlannerTemplates() {
+  try {
+    const raw = localStorage.getItem(YEAR_PLANNER_IMPORTS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveImportedPlannerTemplates() {
+  try {
+    localStorage.setItem(YEAR_PLANNER_IMPORTS_KEY, JSON.stringify(importedPlannerTemplates));
+  } catch {
+    // no-op
+  }
+}
+
+function getSelectedYearLevel() {
+  return plannerYearLevelEl && plannerYearLevelEl.value ? plannerYearLevelEl.value : 'Year 11';
+}
+
+function getImportedPlannerTemplate(yearLevel) {
+  return importedPlannerTemplates[yearLevel] || null;
+}
+
+function renderTermDatePlanner(terms) {
   const body = document.getElementById('plannerBody');
 
   if (!Array.isArray(terms) || !terms.length) {
@@ -184,6 +219,66 @@ function renderPlanner(terms) {
   body.innerHTML = rows.join('');
 }
 
+function renderImportedPlanner(template) {
+  const body = document.getElementById('plannerBody');
+
+  if (!template || !Array.isArray(template.rows) || !template.rows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="planner-empty">No imported planner template is available for this year level.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = template.rows.map((row) => `
+    <tr class="planner-term-header">
+      <td>${esc(row.term)}</td>
+      <td>${esc(row.weeks)}</td>
+      <td>${esc(row.unitStandard)}</td>
+      <td>${esc(row.unitCode)}</td>
+      <td>${esc(row.level)}</td>
+      <td>${esc(row.version)}</td>
+      <td>${esc(row.credits)}</td>
+    </tr>
+  `).join('');
+}
+
+function updatePlannerMeta() {
+  const plannerMeta = document.getElementById('plannerMeta');
+  const selectedYearLevel = getSelectedYearLevel();
+  const importedTemplate = selectedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selectedYearLevel) : null;
+
+  if (importedTemplate) {
+    const importedAt = importedTemplate.importedAt ? new Date(importedTemplate.importedAt).toLocaleString() : 'unknown time';
+    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | Imported planner: ${selectedYearLevel} | Last imported: ${importedAt}`;
+    return;
+  }
+
+  if (selectedYearLevel !== 'Year 11') {
+    plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | No imported planner found for ${selectedYearLevel}. Showing the standard Year 11 planner template.`;
+    return;
+  }
+
+  const refreshed = latestPlannerFetchedAt ? new Date(latestPlannerFetchedAt).toLocaleString() : 'unknown';
+  plannerMeta.textContent = `Source year: ${latestPlannerSourceYear || 'unknown'} | Last refreshed: ${refreshed}`;
+}
+
+function renderPlannerView() {
+  const selectedYearLevel = getSelectedYearLevel();
+  const importedTemplate = selectedYearLevel !== 'Year 11' ? getImportedPlannerTemplate(selectedYearLevel) : null;
+
+  if (importedTemplate) {
+    renderImportedPlanner(importedTemplate.planner);
+    setStatus('success', `Imported planner loaded for ${selectedYearLevel}.`);
+  } else {
+    renderTermDatePlanner(latestPlannerTerms);
+    if (selectedYearLevel !== 'Year 11') {
+      setStatus('warning', `No imported planner uploaded for ${selectedYearLevel} yet. Showing the standard planner template.`);
+    } else {
+      setStatus('success', 'Year planner updated from latest Ministry term dates.');
+    }
+  }
+
+  updatePlannerMeta();
+}
+
 async function loadPlanner() {
   setStatus('saving', 'Loading term dates...');
 
@@ -195,11 +290,11 @@ async function loadPlanner() {
       throw new Error(data.error || 'Failed to load term dates.');
     }
 
-    renderPlanner(data.terms);
-
-    const refreshed = new Date(data.fetchedAt).toLocaleString();
-    document.getElementById('plannerMeta').textContent = `Source year: ${data.year} | Last refreshed: ${refreshed}`;
-    setStatus('success', 'Year planner updated from latest Ministry term dates.');
+    latestPlannerTerms = Array.isArray(data.terms) ? data.terms : [];
+    latestPlannerSourceYear = String(data.year || '').trim();
+    latestPlannerFetchedAt = data.fetchedAt;
+    importedPlannerTemplates = loadImportedPlannerTemplates();
+    renderPlannerView();
   } catch (error) {
     setStatus('error', error.message || 'Failed to load year planner data.');
   }
@@ -242,9 +337,22 @@ document.getElementById('refreshPlannerBtn').addEventListener('click', loadPlann
 wireDropdowns();
 hydrateUserState();
 
-const plannerYearLevelEl = document.getElementById('plannerYearLevel');
 if (plannerYearLevelEl && !plannerYearLevelEl.value) {
   plannerYearLevelEl.value = 'Year 11';
+}
+
+const yearLevelFromQuery = new URLSearchParams(window.location.search).get('yearLevel');
+if (plannerYearLevelEl && yearLevelFromQuery) {
+  const allowedLevels = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
+  if (allowedLevels.includes(yearLevelFromQuery)) {
+    plannerYearLevelEl.value = yearLevelFromQuery;
+  }
+}
+
+if (plannerYearLevelEl) {
+  plannerYearLevelEl.addEventListener('change', () => {
+    renderPlannerView();
+  });
 }
 
 loadPlanner();
