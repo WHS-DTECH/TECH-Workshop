@@ -649,7 +649,7 @@ function extractDocxTableRows(documentXml) {
     const yearLevel = deriveYearLevelFromParagraphs(paragraphs, fallbackYearLevel);
     const titleIndex = paragraphs.findIndex(paragraph => /^Unit Standard Topic:\s*(.+)$/i.test(paragraph));
     const contentParagraphs = paragraphs.slice(titleIndex >= 0 ? titleIndex + 1 : 1);
-    const sectionPattern = /^(?:Week|Weeks|Sub-Topic|Subtopic)\s*(?:\d+(?:\s*[-–]\s*\d+)?)?\b\s*(.*)$/i;
+    const sectionPattern = /^(?:Week|Weeks|Sub[-\s]*Topic|Subtopic)\s*(?:\d+(?:\s*[-–]\s*\d+)?)?\b\s*(.*)$/i;
     const sections = [];
     const introLines = [];
     let currentSection = null;
