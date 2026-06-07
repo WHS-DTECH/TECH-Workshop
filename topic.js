@@ -88,6 +88,7 @@ function loadTopicGroupsData() {
       return {
         type: topic.id,
         title: topic.name || 'Untitled Topic',
+        yearLevel: String(topic.yearLevel || '').trim(),
         subTopics: subTopicsForTopic,
       };
     });
@@ -101,6 +102,7 @@ let topicGroupsData = loadTopicGroupsData();
 const topicState = {
   search: '',
   type: 'all',
+  yearLevel: 'all',
 };
 
 function matchesSearch(group) {
@@ -110,6 +112,7 @@ function matchesSearch(group) {
   const haystack = [
     group.title,
     group.type,
+    group.yearLevel,
     ...(group.subTopics || []).map(st => st.name),
   ].join(' ').toLowerCase();
 
@@ -119,6 +122,11 @@ function matchesSearch(group) {
 function matchesType(group) {
   if (topicState.type === 'all') return true;
   return group.type === topicState.type;
+}
+
+function matchesYearLevel(group) {
+  if (topicState.yearLevel === 'all') return true;
+  return group.yearLevel === topicState.yearLevel;
 }
 
 function renderSubTopicNameList(topicId, subTopics) {
@@ -150,7 +158,7 @@ function renderTopicGroups() {
   const container = document.getElementById('topicGroups');
   if (!container) return;
 
-  const visibleGroups = topicGroupsData.filter(group => matchesType(group) && matchesSearch(group));
+  const visibleGroups = topicGroupsData.filter(group => matchesType(group) && matchesYearLevel(group) && matchesSearch(group));
 
   if (!visibleGroups.length) {
     container.innerHTML = '<div class="topic-empty">No topics matched this filter. Try a different search or choose All topics.</div>';
@@ -160,6 +168,7 @@ function renderTopicGroups() {
   container.innerHTML = visibleGroups.map(group => `
     <article class="topic-group">
       <h3>${esc(group.title)}</h3>
+      ${group.yearLevel ? `<div class="topic-year-level">Year Level: ${esc(group.yearLevel)}</div>` : ''}
       ${group.subTopics && group.subTopics.length
         ? renderSubTopicNameList(group.type, group.subTopics)
         : '<div class="topic-empty">No sub-topics added for this topic yet.</div>'}
@@ -181,9 +190,17 @@ function setActiveType(nextType) {
 
 function wireTopicControls() {
   const searchInput = document.getElementById('topicSearch');
+  const yearLevelFilter = document.getElementById('topicYearLevelFilter');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       topicState.search = e.target.value || '';
+      renderTopicGroups();
+    });
+  }
+
+  if (yearLevelFilter) {
+    yearLevelFilter.addEventListener('change', (e) => {
+      topicState.yearLevel = e.target.value || 'all';
       renderTopicGroups();
     });
   }
