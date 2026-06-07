@@ -565,21 +565,27 @@ function decodeXmlEntities(text) {
 }
 
 function extractDocxTableRows(documentXml) {
-  const tableMatch = String(documentXml || '').match(/<w:tbl[\s\S]*?<\/w:tbl>/i);
+  const tableMatch = String(documentXml || '').match(/<w:tbl(?:\s|>)[\s\S]*?<\/w:tbl>/i);
   if (!tableMatch) return [];
 
   const tableXml = tableMatch[0];
-  const rowMatches = [...tableXml.matchAll(/<w:tr[\s\S]*?<\/w:tr>/gi)];
+  const rowMatches = [...tableXml.matchAll(/<w:tr(?:\s|>)[\s\S]*?<\/w:tr>/gi)];
 
   return rowMatches.map((rowMatch) => {
     const rowXml = rowMatch[0];
-    const cellMatches = [...rowXml.matchAll(/<w:tc[\s\S]*?<\/w:tc>/gi)];
+    const cellMatches = [...rowXml.matchAll(/<w:tc(?:\s|>)[\s\S]*?<\/w:tc>/gi)];
 
     return cellMatches.map((cellMatch) => {
       const cellXml = cellMatch[0];
       const textMatches = [...cellXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi)];
-      const text = textMatches.map(match => match[1]).join(' ');
-      return decodeXmlEntities(text).replace(/\s+/g, ' ').trim();
+      const text = textMatches.length
+        ? textMatches.map(match => match[1]).join(' ')
+        : cellXml;
+
+      return decodeXmlEntities(text)
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     });
   });
 }
