@@ -41,7 +41,32 @@ const uploadLessonNoteBtn = document.getElementById('uploadLessonNoteBtn');
 const alertBox = document.getElementById('worksheetUploadAlert');
 const worksheetListBody = document.getElementById('worksheetListBody');
 const lessonNotesListBody = document.getElementById('lessonNotesListBody');
+const selectAllWorksheets = document.getElementById('selectAllWorksheets');
+const selectAllLessonNotes = document.getElementById('selectAllLessonNotes');
+const bulkDeleteWorksheetsBtn = document.getElementById('bulkDeleteWorksheetsBtn');
+const bulkDeleteLessonNotesBtn = document.getElementById('bulkDeleteLessonNotesBtn');
 let canManageWorksheets = false;
+const selectedWorksheetIds = new Set();
+const selectedLessonNoteIds = new Set();
+
+function updateBulkDeleteButtons() {
+  bulkDeleteWorksheetsBtn.disabled = !canManageWorksheets || selectedWorksheetIds.size === 0;
+  bulkDeleteLessonNotesBtn.disabled = !canManageWorksheets || selectedLessonNoteIds.size === 0;
+}
+
+function syncSelectAllCheckboxes() {
+  const worksheetChecks = worksheetListBody.querySelectorAll('input[data-select-worksheet-id]');
+  const lessonNoteChecks = lessonNotesListBody.querySelectorAll('input[data-select-lesson-note-id]');
+
+  const worksheetCheckedCount = [...worksheetChecks].filter(input => input.checked).length;
+  const lessonCheckedCount = [...lessonNoteChecks].filter(input => input.checked).length;
+
+  selectAllWorksheets.checked = worksheetChecks.length > 0 && worksheetCheckedCount === worksheetChecks.length;
+  selectAllWorksheets.indeterminate = worksheetCheckedCount > 0 && worksheetCheckedCount < worksheetChecks.length;
+
+  selectAllLessonNotes.checked = lessonNoteChecks.length > 0 && lessonCheckedCount === lessonNoteChecks.length;
+  selectAllLessonNotes.indeterminate = lessonCheckedCount > 0 && lessonCheckedCount < lessonNoteChecks.length;
+}
 
 function setAlert(type, message) {
   alertBox.dataset.type = type;
@@ -59,12 +84,22 @@ function formatDate(value) {
 
 function renderWorksheetRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    worksheetListBody.innerHTML = '<tr><td colspan="9" class="planner-empty">No worksheets uploaded yet.</td></tr>';
+    worksheetListBody.innerHTML = '<tr><td colspan="10" class="planner-empty">No worksheets uploaded yet.</td></tr>';
+    selectedWorksheetIds.clear();
+    syncSelectAllCheckboxes();
+    updateBulkDeleteButtons();
     return;
   }
 
+  const availableIds = new Set(items.map(item => String(item.id)));
+  [...selectedWorksheetIds].forEach(id => {
+    if (!availableIds.has(String(id))) selectedWorksheetIds.delete(id);
+  });
+
   worksheetListBody.innerHTML = items.map(item => {
     const reviewHref = `/api/worksheets/${encodeURIComponent(item.id)}/file`;
+    const itemId = String(item.id);
+    const isSelected = selectedWorksheetIds.has(itemId);
     const strandLabel = item.strand_number
       ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
       : (item.strand_title || '-');
@@ -76,6 +111,7 @@ function renderWorksheetRows(items) {
       : '-';
     return `
       <tr>
+        <td><input type="checkbox" data-select-worksheet-id="${esc(itemId)}" ${isSelected ? 'checked' : ''} /></td>
         <td>${esc(item.worksheet_title || 'Untitled')}</td>
         <td>${esc(item.year_level || 'Not set')}</td>
         <td>${esc(strandLabel)}</td>
@@ -94,15 +130,28 @@ function renderWorksheetRows(items) {
       </tr>
     `;
   }).join('');
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
 }
 
 function renderLessonNoteRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    lessonNotesListBody.innerHTML = '<tr><td colspan="7" class="planner-empty">No lesson notes uploaded yet.</td></tr>';
+    lessonNotesListBody.innerHTML = '<tr><td colspan="8" class="planner-empty">No lesson notes uploaded yet.</td></tr>';
+    selectedLessonNoteIds.clear();
+    syncSelectAllCheckboxes();
+    updateBulkDeleteButtons();
     return;
   }
 
+  const availableIds = new Set(items.map(item => String(item.id)));
+  [...selectedLessonNoteIds].forEach(id => {
+    if (!availableIds.has(String(id))) selectedLessonNoteIds.delete(id);
+  });
+
   lessonNotesListBody.innerHTML = items.map(item => {
+    const itemId = String(item.id);
+    const isSelected = selectedLessonNoteIds.has(itemId);
     const strandLabel = item.strand_number
       ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
       : (item.strand_title || '-');
@@ -113,6 +162,7 @@ function renderLessonNoteRows(items) {
 
     return `
       <tr>
+        <td><input type="checkbox" data-select-lesson-note-id="${esc(itemId)}" ${isSelected ? 'checked' : ''} /></td>
         <td>${esc(item.lesson_note_title || 'Untitled')}</td>
         <td>${esc(item.year_level || 'Not set')}</td>
         <td>${esc(strandLabel)}</td>
@@ -127,6 +177,9 @@ function renderLessonNoteRows(items) {
       </tr>
     `;
   }).join('');
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
 }
 
 async function loadWorksheets() {
@@ -140,7 +193,7 @@ async function loadWorksheets() {
 
     renderWorksheetRows(Array.isArray(json.worksheets) ? json.worksheets : []);
   } catch (error) {
-    worksheetListBody.innerHTML = `<tr><td colspan="9" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
+    worksheetListBody.innerHTML = `<tr><td colspan="10" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
   }
 }
 
@@ -155,7 +208,7 @@ async function loadLessonNotes() {
 
     renderLessonNoteRows(Array.isArray(json.lessonNotes) ? json.lessonNotes : []);
   } catch (error) {
-    lessonNotesListBody.innerHTML = `<tr><td colspan="7" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
+    lessonNotesListBody.innerHTML = `<tr><td colspan="8" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
   }
 }
 
@@ -179,6 +232,7 @@ async function deleteWorksheetById(id, title) {
       throw new Error(json.error || 'Failed to delete worksheet.');
     }
 
+    selectedWorksheetIds.delete(String(id));
     setAlert('success', `Deleted worksheet: ${json.worksheet.worksheet_title}.`);
     await loadWorksheets();
     await loadLessonNotes();
@@ -207,6 +261,7 @@ async function deleteLessonNoteById(id, title) {
       throw new Error(json.error || 'Failed to delete lesson note.');
     }
 
+    selectedLessonNoteIds.delete(String(id));
     setAlert('success', `Deleted lesson note: ${json.lessonNote.lesson_note_title}.`);
     await loadLessonNotes();
     await loadWorksheets();
@@ -417,6 +472,142 @@ lessonNotesListBody.addEventListener('click', async (event) => {
   const lessonNoteId = button.getAttribute('data-delete-lesson-note-id');
   const lessonNoteTitle = button.getAttribute('data-delete-lesson-note-title') || 'lesson note';
   await deleteLessonNoteById(lessonNoteId, lessonNoteTitle);
+});
+
+worksheetListBody.addEventListener('change', (event) => {
+  const checkbox = event.target.closest('input[data-select-worksheet-id]');
+  if (!checkbox) return;
+
+  const id = checkbox.getAttribute('data-select-worksheet-id');
+  if (!id) return;
+
+  if (checkbox.checked) selectedWorksheetIds.add(String(id));
+  else selectedWorksheetIds.delete(String(id));
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
+});
+
+lessonNotesListBody.addEventListener('change', (event) => {
+  const checkbox = event.target.closest('input[data-select-lesson-note-id]');
+  if (!checkbox) return;
+
+  const id = checkbox.getAttribute('data-select-lesson-note-id');
+  if (!id) return;
+
+  if (checkbox.checked) selectedLessonNoteIds.add(String(id));
+  else selectedLessonNoteIds.delete(String(id));
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
+});
+
+selectAllWorksheets.addEventListener('change', () => {
+  const shouldSelectAll = selectAllWorksheets.checked;
+  worksheetListBody.querySelectorAll('input[data-select-worksheet-id]').forEach((input) => {
+    const id = input.getAttribute('data-select-worksheet-id');
+    input.checked = shouldSelectAll;
+    if (!id) return;
+    if (shouldSelectAll) selectedWorksheetIds.add(String(id));
+    else selectedWorksheetIds.delete(String(id));
+  });
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
+});
+
+selectAllLessonNotes.addEventListener('change', () => {
+  const shouldSelectAll = selectAllLessonNotes.checked;
+  lessonNotesListBody.querySelectorAll('input[data-select-lesson-note-id]').forEach((input) => {
+    const id = input.getAttribute('data-select-lesson-note-id');
+    input.checked = shouldSelectAll;
+    if (!id) return;
+    if (shouldSelectAll) selectedLessonNoteIds.add(String(id));
+    else selectedLessonNoteIds.delete(String(id));
+  });
+
+  syncSelectAllCheckboxes();
+  updateBulkDeleteButtons();
+});
+
+bulkDeleteWorksheetsBtn.addEventListener('click', async () => {
+  if (!canManageWorksheets) {
+    setAlert('warning', 'Only Admin and Lead Teacher accounts can delete worksheets.');
+    return;
+  }
+
+  const ids = [...selectedWorksheetIds];
+  if (!ids.length) {
+    setAlert('warning', 'Select one or more worksheets to delete.');
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete ${ids.length} selected worksheet(s)? This action cannot be undone.`);
+  if (!confirmed) return;
+
+  setAlert('saving', `Deleting ${ids.length} selected worksheet(s)...`);
+
+  let successCount = 0;
+  for (const id of ids) {
+    try {
+      const response = await fetch(`/api/worksheets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (response.ok) {
+        successCount += 1;
+        selectedWorksheetIds.delete(String(id));
+      }
+    } catch {
+      // Keep going so one failure does not block the rest.
+    }
+  }
+
+  await loadWorksheets();
+  await loadLessonNotes();
+
+  if (successCount === ids.length) {
+    setAlert('success', `Deleted ${successCount} worksheet(s).`);
+  } else {
+    setAlert('warning', `Deleted ${successCount} of ${ids.length} worksheet(s).`);
+  }
+});
+
+bulkDeleteLessonNotesBtn.addEventListener('click', async () => {
+  if (!canManageWorksheets) {
+    setAlert('warning', 'Only Admin and Lead Teacher accounts can delete lesson notes.');
+    return;
+  }
+
+  const ids = [...selectedLessonNoteIds];
+  if (!ids.length) {
+    setAlert('warning', 'Select one or more lesson notes to delete.');
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete ${ids.length} selected lesson note(s)? Linked worksheets will remain but be unlinked.`);
+  if (!confirmed) return;
+
+  setAlert('saving', `Deleting ${ids.length} selected lesson note(s)...`);
+
+  let successCount = 0;
+  for (const id of ids) {
+    try {
+      const response = await fetch(`/api/lesson-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (response.ok) {
+        successCount += 1;
+        selectedLessonNoteIds.delete(String(id));
+      }
+    } catch {
+      // Keep going so one failure does not block the rest.
+    }
+  }
+
+  await loadLessonNotes();
+  await loadWorksheets();
+
+  if (successCount === ids.length) {
+    setAlert('success', `Deleted ${successCount} lesson note(s).`);
+  } else {
+    setAlert('warning', `Deleted ${successCount} of ${ids.length} lesson note(s).`);
+  }
 });
 
 wireDropdowns();
