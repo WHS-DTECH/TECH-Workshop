@@ -136,6 +136,7 @@ const seedLibraryActivities = [
 ];
 
 let worksheetLibraryItems = [];
+let lessonNoteLibraryItems = [];
 let libraryItems = [];
 
 const thisWeekGrid = document.getElementById("thisWeekGrid");
@@ -237,10 +238,35 @@ function mapWorksheetToLibraryItem(worksheet) {
   };
 }
 
+function mapLessonNoteToLibraryItem(lessonNote) {
+  const strandLabel = lessonNote.strand_number
+    ? `Strand ${lessonNote.strand_number}${lessonNote.strand_title ? ` - ${lessonNote.strand_title}` : ""}`
+    : (lessonNote.strand_title || "");
+
+  return {
+    title: lessonNote.lesson_note_title || "Untitled Lesson Note",
+    year: lessonNote.year_level || "Junior",
+    type: "Lesson Notes",
+    duration: null,
+    skill: null,
+    skillLabel: strandLabel || "Lesson Notes",
+    description: [
+      strandLabel ? `Strand: ${strandLabel}` : null,
+      `Linked worksheets: ${Number(lessonNote.linked_worksheet_count || 0)}`,
+    ].filter(Boolean).join(" • "),
+    kind: "lesson-note",
+    category: "Lesson Notes",
+    uploadType: "LESSON NOTES",
+    keywords: ["lesson notes", lessonNote.strand_title, lessonNote.lesson_note_title].filter(Boolean).join(" "),
+    image: buildPlaceholder(lessonNote.lesson_note_title || "Lesson Notes", "Finishing", "Workshop Lesson Notes"),
+  };
+}
+
 function rebuildLibraryItems() {
   libraryItems = [
     ...seedLibraryActivities.map(normaliseActivity),
     ...worksheetLibraryItems,
+    ...lessonNoteLibraryItems,
   ];
 
   activityCounter.textContent = `${libraryItems.length} items in the student library`;
@@ -313,6 +339,22 @@ async function loadWorksheetLibraryItems() {
   }
 }
 
+async function loadLessonNoteLibraryItems() {
+  try {
+    const response = await fetch("/api/lesson-notes", { cache: "no-store" });
+    if (!response.ok) {
+      lessonNoteLibraryItems = [];
+      return;
+    }
+
+    const json = await response.json();
+    const lessonNotes = Array.isArray(json.lessonNotes) ? json.lessonNotes : [];
+    lessonNoteLibraryItems = lessonNotes.map(mapLessonNoteToLibraryItem);
+  } catch {
+    lessonNoteLibraryItems = [];
+  }
+}
+
 function createCard(activity) {
   const card = document.createElement("article");
   card.className = "activity-card";
@@ -369,7 +411,8 @@ function getFilteredLibrary() {
   const filtered = libraryItems.filter((activity) => {
     const matchesShow = selectedShow === "all"
       || (selectedShow === "activities" && activity.kind === "activity")
-      || (selectedShow === "worksheets" && activity.kind === "worksheet");
+      || (selectedShow === "worksheets" && activity.kind === "worksheet")
+      || (selectedShow === "lesson-notes" && activity.kind === "lesson-note");
 
     const matchesSearch =
       searchValue.length === 0 ||
@@ -475,6 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initialise() {
   await loadWorksheetLibraryItems();
+  await loadLessonNoteLibraryItems();
   rebuildLibraryItems();
   renderCategoryFilters();
   renderThisWeek();
