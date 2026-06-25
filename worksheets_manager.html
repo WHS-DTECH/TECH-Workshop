@@ -32,7 +32,7 @@
         <div class="upload-grid two-col">
           <label>
             <span>Worksheet Title</span>
-            <input type="text" id="worksheetTitle" name="worksheet_title" placeholder="e.g. Year 7_8 Woodwork Teaching and Learning Resources" required />
+            <input type="text" id="worksheetTitle" name="worksheet_title" placeholder="Optional for bulk upload. e.g. Workshop Safety Worksheet 1" />
           </label>
 
           <label>
@@ -52,18 +52,39 @@
           </label>
 
           <label>
+            <span>Worksheet Category</span>
+            <select id="worksheetCategory" name="worksheet_category">
+              <option value="Auto-detect" selected>Auto-detect</option>
+              <option value="Safety">Safety</option>
+              <option value="Hand tools">Hand tools</option>
+              <option value="Abrasives">Abrasives</option>
+              <option value="Joints and Processes">Joints and Processes</option>
+              <option value="Type of wood finishes">Type of wood finishes</option>
+            </select>
+          </label>
+
+          <label>
             <span>Worksheet File</span>
             <input
               type="file"
               id="worksheetFile"
-              name="worksheet_file"
+              name="worksheet_files"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              multiple
               required
             />
           </label>
+
+          <label class="upload-checkbox-label">
+            <span>DOCX Split Mode</span>
+            <span class="upload-checkbox-row">
+              <input type="checkbox" id="splitDocxList" name="split_docx_list" value="1" />
+              Split a DOCX worksheet list into individual worksheet rows.
+            </span>
+          </label>
         </div>
 
-        <p class="upload-helper">Start with: TeacherFiles\Worksheets\Year 7_8 - Woodwork - Teaching and Learning Resources.docx</p>
+        <p class="upload-helper">Start with: TeacherFiles\Worksheets\Year 7_8 - Woodwork - Teaching and Learning Resources.docx. Enable DOCX Split Mode for list documents that contain worksheet names.</p>
 
         <div class="upload-actions">
           <button type="submit" class="btn btn-primary" id="uploadWorksheetBtn" disabled>Upload Worksheet</button>
@@ -81,13 +102,14 @@
             <tr>
               <th>Title</th>
               <th>Year Level</th>
+              <th>Category</th>
               <th>File</th>
               <th>Uploaded</th>
               <th>Review</th>
             </tr>
           </thead>
           <tbody id="worksheetListBody">
-            <tr><td colspan="5" class="planner-empty">Loading worksheets...</td></tr>
+            <tr><td colspan="6" class="planner-empty">Loading worksheets...</td></tr>
           </tbody>
         </table>
       </div>

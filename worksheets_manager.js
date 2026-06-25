@@ -56,7 +56,7 @@ function formatDate(value) {
 
 function renderWorksheetRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    worksheetListBody.innerHTML = '<tr><td colspan="5" class="planner-empty">No worksheets uploaded yet.</td></tr>';
+    worksheetListBody.innerHTML = '<tr><td colspan="6" class="planner-empty">No worksheets uploaded yet.</td></tr>';
     return;
   }
 
@@ -66,6 +66,7 @@ function renderWorksheetRows(items) {
       <tr>
         <td>${esc(item.worksheet_title || 'Untitled')}</td>
         <td>${esc(item.year_level || 'Not set')}</td>
+        <td>${esc(item.worksheet_category || 'Uncategorized')}</td>
         <td>${esc(item.file_name || 'Unknown file')}</td>
         <td>${esc(formatDate(item.created_at))}</td>
         <td>
@@ -87,14 +88,14 @@ async function loadWorksheets() {
 
     renderWorksheetRows(Array.isArray(json.worksheets) ? json.worksheets : []);
   } catch (error) {
-    worksheetListBody.innerHTML = `<tr><td colspan="5" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
+    worksheetListBody.innerHTML = `<tr><td colspan="6" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
   }
 }
 
 function validateForm() {
-  const file = document.getElementById('worksheetFile').files[0];
-  const title = document.getElementById('worksheetTitle').value.trim();
-  uploadBtn.disabled = !canManageWorksheets || !title || !file;
+  const fileInput = document.getElementById('worksheetFile');
+  const hasFiles = fileInput.files && fileInput.files.length > 0;
+  uploadBtn.disabled = !canManageWorksheets || !hasFiles;
 }
 
 async function hydrateUserState() {
@@ -152,7 +153,7 @@ async function hydrateUserState() {
 form.addEventListener('change', () => {
   const fileInput = document.getElementById('worksheetFile');
   const titleInput = document.getElementById('worksheetTitle');
-  const file = fileInput.files[0];
+  const file = fileInput.files && fileInput.files.length === 1 ? fileInput.files[0] : null;
 
   if (file && !titleInput.value.trim()) {
     titleInput.value = String(file.name || '').replace(/\.[^.]+$/, '');
@@ -165,11 +166,17 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const fileInput = document.getElementById('worksheetFile');
-  const file = fileInput.files[0];
+  const files = fileInput.files;
   const title = document.getElementById('worksheetTitle').value.trim();
+  const splitMode = document.getElementById('splitDocxList').checked;
 
-  if (!file || !title) {
-    setAlert('error', 'Worksheet title and file are required.');
+  if (!files || !files.length) {
+    setAlert('error', 'Please choose at least one worksheet file.');
+    return;
+  }
+
+  if (splitMode && files.length !== 1) {
+    setAlert('error', 'DOCX Split Mode only works when uploading a single DOCX file.');
     return;
   }
 
@@ -188,9 +195,14 @@ form.addEventListener('submit', async (event) => {
       throw new Error(json.error || 'Failed to upload worksheet.');
     }
 
-    setAlert('success', `Uploaded ${json.worksheet.file_name} for ${json.worksheet.year_level}.`);
+    const uploadedCount = Number(json.uploadedCount || 0);
+    const uploadedSummary = uploadedCount > 1
+      ? `Uploaded ${uploadedCount} worksheets for ${json.worksheet.year_level}.`
+      : `Uploaded ${json.worksheet.file_name} for ${json.worksheet.year_level}.`;
+    setAlert('success', uploadedSummary);
     form.reset();
     document.getElementById('worksheetYearLevel').value = 'Junior';
+    document.getElementById('worksheetCategory').value = 'Auto-detect';
     await loadWorksheets();
   } catch (error) {
     setAlert('error', error.message || 'Failed to upload worksheet.');

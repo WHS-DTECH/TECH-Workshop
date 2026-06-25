@@ -96,6 +96,48 @@ const uploadWorksheetFile = multer({
   }
 });
 
+const uploadWorksheetFiles = uploadWorksheetFile.fields([
+  { name: 'worksheet_files', maxCount: 40 },
+  { name: 'worksheet_file', maxCount: 1 },
+]);
+
+function inferWorksheetCategory(sourceText) {
+  const text = String(sourceText || '').toLowerCase();
+
+  if (/safety|safe\b/.test(text)) return 'Safety';
+  if (/hand\s*tools?|tools?\s*hand/.test(text)) return 'Hand tools';
+  if (/abrasive|abrasives|sandpaper|sanding/.test(text)) return 'Abrasives';
+  if (/joint|joints|process|processes/.test(text)) return 'Joints and Processes';
+  if (/finish|finishes|finishing|stain|varnish|polyurethane|oil\b|wax|lacquer/.test(text)) return 'Type of wood finishes';
+
+  return 'Uncategorized';
+}
+
+async function extractWorksheetTitlesFromDocx(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentEntry = zip.file('word/document.xml');
+  if (!documentEntry) return [];
+
+  const documentXml = await documentEntry.async('string');
+  const paragraphMatches = [...String(documentXml || '').matchAll(/<w:p(?:\s|>)[\s\S]*?<\/w:p>/gi)];
+
+  const paragraphs = paragraphMatches.map((paragraphMatch) => {
+    const paragraphXml = paragraphMatch[0];
+    const textMatches = [...paragraphXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi)];
+    const text = textMatches.map(match => match[1]).join(' ');
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }).filter(Boolean);
+
+  const worksheetTitles = paragraphs.filter((paragraph) => {
+    if (!/worksheet\b/i.test(paragraph)) return false;
+    if (/strand\s*\d+/i.test(paragraph)) return false;
+    if (/lesson\s*notes?/i.test(paragraph)) return false;
+    return true;
+  });
+
+  return [...new Set(worksheetTitles)];
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const appDatabaseUrl = process.env.APP_DATABASE_URL || process.env.DATABASE_URL;
@@ -343,12 +385,18 @@ async function initDB() {
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       worksheet_title VARCHAR(255) NOT NULL,
       year_level VARCHAR(50) NOT NULL,
+      worksheet_category VARCHAR(120),
       file_name VARCHAR(255) NOT NULL,
       file_mime VARCHAR(120),
       file_size INTEGER,
       file_data BYTEA NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE uploaded_worksheets
+    ADD COLUMN IF NOT EXISTS worksheet_category VARCHAR(120);
   `);
 
   // Seed default permissions if none exist
@@ -1011,41 +1059,102 @@ app.post('/api/topics/import-docx', requireAuth, requireAdminOrLead, uploadTopic
   }
 });
 
-app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksheetFile.single('worksheet_file'), async (req, res) => {
+app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksheetFiles, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Please choose a worksheet file to upload.' });
+    const files = [
+      ...((req.files && req.files.worksheet_files) || []),
+      ...((req.files && req.files.worksheet_file) || []),
+    ];
+
+    if (!files.length) {
+      return res.status(400).json({ error: 'Please choose one or more worksheet files to upload.' });
     }
 
-    const worksheetTitle = String(req.body.worksheet_title || '').trim() || String(req.file.originalname || '').replace(/\.[^.]+$/, '');
+    const worksheetTitleInput = String(req.body.worksheet_title || '').trim();
+    const worksheetCategoryInput = String(req.body.worksheet_category || '').trim();
     const yearLevel = String(req.body.year_level || '').trim();
-
-    if (!worksheetTitle) {
-      return res.status(400).json({ error: 'Worksheet title is required.' });
-    }
+    const splitDocxList = ['1', 'true', 'on', 'yes'].includes(String(req.body.split_docx_list || '').toLowerCase());
 
     if (!yearLevel) {
       return res.status(400).json({ error: 'Year level is required.' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO uploaded_worksheets (
-        created_by, worksheet_title, year_level, file_name, file_mime, file_size, file_data
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, worksheet_title, year_level, file_name, file_mime, file_size, created_at`,
-      [
-        req.user.id,
-        worksheetTitle,
-        yearLevel,
-        req.file.originalname,
-        req.file.mimetype || null,
-        req.file.size || null,
-        req.file.buffer,
-      ]
-    );
+    const uploadedRows = [];
 
-    res.json({ success: true, worksheet: result.rows[0] });
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const lowerName = String(file.originalname || '').toLowerCase();
+
+      if (splitDocxList && files.length === 1 && lowerName.endsWith('.docx')) {
+        const parsedTitles = await extractWorksheetTitlesFromDocx(file.buffer);
+
+        if (parsedTitles.length) {
+          for (const parsedTitle of parsedTitles) {
+            const worksheetCategory = worksheetCategoryInput && worksheetCategoryInput !== 'Auto-detect'
+              ? worksheetCategoryInput
+              : inferWorksheetCategory(parsedTitle);
+
+            const result = await pool.query(
+              `INSERT INTO uploaded_worksheets (
+                created_by, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, file_data
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+              RETURNING id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at`,
+              [
+                req.user.id,
+                parsedTitle,
+                yearLevel,
+                worksheetCategory,
+                file.originalname,
+                file.mimetype || null,
+                file.size || null,
+                file.buffer,
+              ]
+            );
+
+            uploadedRows.push(result.rows[0]);
+          }
+
+          continue;
+        }
+      }
+
+      const fallbackTitle = String(file.originalname || '').replace(/\.[^.]+$/, '');
+      const worksheetTitle = files.length === 1 && worksheetTitleInput
+        ? worksheetTitleInput
+        : fallbackTitle;
+
+      const worksheetCategory = worksheetCategoryInput && worksheetCategoryInput !== 'Auto-detect'
+        ? worksheetCategoryInput
+        : inferWorksheetCategory(`${worksheetTitle} ${file.originalname || ''}`);
+
+      const result = await pool.query(
+        `INSERT INTO uploaded_worksheets (
+          created_by, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, file_data
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at`,
+        [
+          req.user.id,
+          worksheetTitle,
+          yearLevel,
+          worksheetCategory,
+          file.originalname,
+          file.mimetype || null,
+          file.size || null,
+          file.buffer,
+        ]
+      );
+
+      uploadedRows.push(result.rows[0]);
+    }
+
+    res.json({
+      success: true,
+      uploadedCount: uploadedRows.length,
+      worksheets: uploadedRows,
+      worksheet: uploadedRows[0],
+    });
   } catch (error) {
     console.error('Worksheet upload error:', error);
     res.status(400).json({ error: error.message || 'Failed to upload worksheet.' });
@@ -1055,7 +1164,7 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
 app.get('/api/worksheets', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, worksheet_title, year_level, file_name, file_mime, file_size, created_at
+      `SELECT id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at
        FROM uploaded_worksheets
        ORDER BY created_at DESC, id DESC`
     );
