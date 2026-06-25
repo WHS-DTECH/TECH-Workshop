@@ -1248,6 +1248,32 @@ body {
   vertical-align: middle;
 }
 
+.worksheet-table th.is-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.worksheet-table th.is-sortable:hover {
+  background: #e2ecf7;
+}
+
+.worksheet-table th.is-sortable::after {
+  content: ' \2195';
+  font-size: 0.66rem;
+  color: #5f7893;
+}
+
+.worksheet-table th.is-sortable.sort-asc::after {
+  content: ' \2191';
+  color: #1f4d77;
+}
+
+.worksheet-table th.is-sortable.sort-desc::after {
+  content: ' \2193';
+  color: #1f4d77;
+}
+
 .btn-sm {
   padding: 6px 10px;
   font-size: 0.72rem;

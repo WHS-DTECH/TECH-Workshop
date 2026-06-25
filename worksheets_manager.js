@@ -48,6 +48,90 @@ const bulkDeleteLessonNotesBtn = document.getElementById('bulkDeleteLessonNotesB
 let canManageWorksheets = false;
 const selectedWorksheetIds = new Set();
 const selectedLessonNoteIds = new Set();
+let worksheetsData = [];
+let lessonNotesData = [];
+
+const sortState = {
+  worksheets: { key: 'year_level', direction: 'asc' },
+  lessonNotes: { key: 'year_level', direction: 'asc' },
+};
+
+const YEAR_SORT_ORDER = {
+  Junior: 1,
+  'Year 7': 2,
+  'Year 8': 3,
+  Middle: 4,
+  'Year 9': 5,
+  'Year 10': 6,
+  Senior: 7,
+  'Year 11': 8,
+  'Year 12': 9,
+  'Year 13': 10,
+};
+
+function yearRank(value) {
+  const label = String(value || '').trim();
+  return Object.prototype.hasOwnProperty.call(YEAR_SORT_ORDER, label)
+    ? YEAR_SORT_ORDER[label]
+    : 999;
+}
+
+function strandLabelForItem(item) {
+  return item.strand_number
+    ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
+    : (item.strand_title || '-');
+}
+
+function compareValues(a, b, direction = 'asc') {
+  const safeA = String(a ?? '').toLowerCase();
+  const safeB = String(b ?? '').toLowerCase();
+  const result = safeA.localeCompare(safeB, undefined, { numeric: true, sensitivity: 'base' });
+  return direction === 'asc' ? result : -result;
+}
+
+function sortItems(items, tableName) {
+  const state = tableName === 'worksheets' ? sortState.worksheets : sortState.lessonNotes;
+  const { key, direction } = state;
+  const list = [...items];
+
+  list.sort((a, b) => {
+    if (key === 'year_level') {
+      const result = yearRank(a.year_level) - yearRank(b.year_level);
+      if (result !== 0) return direction === 'asc' ? result : -result;
+      return compareValues(a.worksheet_title || a.lesson_note_title, b.worksheet_title || b.lesson_note_title, direction);
+    }
+
+    if (key === 'strand') {
+      const result = compareValues(strandLabelForItem(a), strandLabelForItem(b), direction);
+      if (result !== 0) return result;
+      return compareValues(a.worksheet_title || a.lesson_note_title, b.worksheet_title || b.lesson_note_title, direction);
+    }
+
+    if (key === 'worksheet_category') {
+      const result = compareValues(a.worksheet_category || '', b.worksheet_category || '', direction);
+      if (result !== 0) return result;
+      return compareValues(a.worksheet_title || '', b.worksheet_title || '', direction);
+    }
+
+    return compareValues(a.worksheet_title || a.lesson_note_title, b.worksheet_title || b.lesson_note_title, direction);
+  });
+
+  return list;
+}
+
+function updateSortHeaderIndicators() {
+  document.querySelectorAll('th.is-sortable').forEach((th) => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    const target = th.getAttribute('data-sort-target');
+    const key = th.getAttribute('data-sort-key');
+    if (!target || !key) return;
+
+    const state = target === 'worksheets' ? sortState.worksheets : sortState.lessonNotes;
+    if (state.key === key) {
+      th.classList.add(state.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
 
 function updateBulkDeleteButtons() {
   bulkDeleteWorksheetsBtn.disabled = !canManageWorksheets || selectedWorksheetIds.size === 0;
@@ -96,13 +180,11 @@ function renderWorksheetRows(items) {
     if (!availableIds.has(String(id))) selectedWorksheetIds.delete(id);
   });
 
-  worksheetListBody.innerHTML = items.map(item => {
+  worksheetListBody.innerHTML = sortItems(items, 'worksheets').map(item => {
     const reviewHref = `/api/worksheets/${encodeURIComponent(item.id)}/file`;
     const itemId = String(item.id);
     const isSelected = selectedWorksheetIds.has(itemId);
-    const strandLabel = item.strand_number
-      ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
-      : (item.strand_title || '-');
+    const strandLabel = strandLabelForItem(item);
     const linkedLessonHref = item.lesson_note_id ? `/api/lesson-notes/${encodeURIComponent(item.lesson_note_id)}/file` : null;
     const linkedLesson = item.lesson_note_title
       ? (linkedLessonHref
@@ -149,12 +231,10 @@ function renderLessonNoteRows(items) {
     if (!availableIds.has(String(id))) selectedLessonNoteIds.delete(id);
   });
 
-  lessonNotesListBody.innerHTML = items.map(item => {
+  lessonNotesListBody.innerHTML = sortItems(items, 'lessonNotes').map(item => {
     const itemId = String(item.id);
     const isSelected = selectedLessonNoteIds.has(itemId);
-    const strandLabel = item.strand_number
-      ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
-      : (item.strand_title || '-');
+    const strandLabel = strandLabelForItem(item);
     const hasFile = Boolean(item.source_file_name);
     const reviewAction = hasFile
       ? `<a class="btn btn-secondary btn-sm" href="/api/lesson-notes/${encodeURIComponent(item.id)}/file" target="_blank" rel="noopener">Review</a>`
@@ -191,7 +271,8 @@ async function loadWorksheets() {
       throw new Error(json.error || 'Failed to load worksheets.');
     }
 
-    renderWorksheetRows(Array.isArray(json.worksheets) ? json.worksheets : []);
+    worksheetsData = Array.isArray(json.worksheets) ? json.worksheets : [];
+    renderWorksheetRows(worksheetsData);
   } catch (error) {
     worksheetListBody.innerHTML = `<tr><td colspan="10" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
   }
@@ -206,7 +287,8 @@ async function loadLessonNotes() {
       throw new Error(json.error || 'Failed to load lesson notes.');
     }
 
-    renderLessonNoteRows(Array.isArray(json.lessonNotes) ? json.lessonNotes : []);
+    lessonNotesData = Array.isArray(json.lessonNotes) ? json.lessonNotes : [];
+    renderLessonNoteRows(lessonNotesData);
   } catch (error) {
     lessonNotesListBody.innerHTML = `<tr><td colspan="8" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
   }
@@ -474,6 +556,29 @@ lessonNotesListBody.addEventListener('click', async (event) => {
   await deleteLessonNoteById(lessonNoteId, lessonNoteTitle);
 });
 
+document.querySelectorAll('th.is-sortable').forEach((th) => {
+  th.addEventListener('click', () => {
+    const target = th.getAttribute('data-sort-target');
+    const key = th.getAttribute('data-sort-key');
+    if (!target || !key) return;
+
+    const state = target === 'worksheets' ? sortState.worksheets : sortState.lessonNotes;
+    if (state.key === key) {
+      state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      state.key = key;
+      state.direction = 'asc';
+    }
+
+    updateSortHeaderIndicators();
+    if (target === 'worksheets') {
+      renderWorksheetRows(worksheetsData);
+    } else {
+      renderLessonNoteRows(lessonNotesData);
+    }
+  });
+});
+
 worksheetListBody.addEventListener('change', (event) => {
   const checkbox = event.target.closest('input[data-select-worksheet-id]');
   if (!checkbox) return;
@@ -615,3 +720,4 @@ hydrateUserState();
 loadWorksheets();
 loadLessonNotes();
 validateForm();
+updateSortHeaderIndicators();
