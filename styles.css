@@ -329,7 +329,14 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.library-subcopy {
+  margin: 0 0 10px;
+  color: #34587d;
+  font-size: 0.74rem;
+  font-weight: 600;
 }
 
 .library-stats {
@@ -338,6 +345,10 @@ body {
   color: #2f587a;
   background: #e2eef8;
   border: 1px solid #a8c4dc;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
 .nav-dropdown-placeholder {
   display: block;
   padding: 8px 12px;
@@ -347,14 +358,78 @@ body {
   cursor: default;
   white-space: nowrap;
 }
-  border-radius: 999px;
-  padding: 3px 8px;
+
+.filter-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.filter-row {
+.filter-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filter-label {
+  font-size: 0.67rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--soft-ink);
+  letter-spacing: 0.05em;
+}
+
+.segment-row {
   display: grid;
-  grid-template-columns: 1.5fr repeat(3, minmax(140px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #b3c8db;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.segment-btn {
+  border: 0;
+  border-right: 1px solid #c9daea;
+  background: #f7fbff;
+  color: #1c4a72;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 9px 8px;
+  cursor: pointer;
+}
+
+.segment-btn:last-child {
+  border-right: 0;
+}
+
+.segment-btn.is-active {
+  background: #4a207a;
+  color: #fff;
+}
+
+.chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip-btn {
+  border: 1px solid #b7cbe0;
+  border-radius: 999px;
+  background: #f4f8fc;
+  color: #214d74;
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.chip-btn.is-active {
+  background: #4a207a;
+  color: #fff;
+  border-color: #4a207a;
 }
 
 .field {
@@ -509,8 +584,8 @@ body {
     display: none;
   }
 
-  .filter-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .segment-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -544,10 +619,6 @@ body {
 
   .profile-actions {
     display: none;
-  }
-
-  .filter-row {
-    grid-template-columns: 1fr;
   }
 
   .card-grid {

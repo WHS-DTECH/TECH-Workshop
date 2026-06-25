@@ -42,47 +42,67 @@
     <section class="panel" aria-labelledby="library-title">
       <div class="panel-controls">
         <div class="title-row">
-          <h2 id="library-title">Activity Library Students Can Choose</h2>
+          <h2 id="library-title">Browse every workshop activity and worksheet</h2>
           <div class="library-stats" id="libraryStats">0 shown</div>
         </div>
+        <p class="library-subcopy">Search by title, year level, strand, or keywords, then filter to quickly find the right task.</p>
 
-        <div class="filter-row">
+        <div class="filter-stack">
           <label class="field">
-            <span>Search</span>
-            <input type="search" id="searchInput" placeholder="Search activities (e.g. stool, laminate, joints)" />
+            <span>Search by title or keyword</span>
+            <input type="search" id="searchInput" placeholder="e.g. pocket-hole, safety, joints, worksheet" />
           </label>
+
+          <div class="filter-block">
+            <span class="filter-label">Show</span>
+            <div class="segment-row" id="showFilterGroup" role="tablist" aria-label="Show library items">
+              <button type="button" class="segment-btn is-active" data-show="all">All items</button>
+              <button type="button" class="segment-btn" data-show="activities">Activities</button>
+              <button type="button" class="segment-btn" data-show="worksheets">Worksheets</button>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <span class="filter-label">Year level</span>
+            <div class="chip-row" id="yearFilterGroup" aria-label="Filter by year level">
+              <button type="button" class="chip-btn is-active" data-year="all">All levels</button>
+              <button type="button" class="chip-btn" data-year="Junior">Junior School</button>
+              <button type="button" class="chip-btn" data-year="Middle">Middle School</button>
+              <button type="button" class="chip-btn" data-year="Senior">Senior School</button>
+              <button type="button" class="chip-btn" data-year="Year 9">Year 9</button>
+              <button type="button" class="chip-btn" data-year="Year 10">Year 10</button>
+              <button type="button" class="chip-btn" data-year="Year 11">Year 11</button>
+              <button type="button" class="chip-btn" data-year="Year 12">Year 12</button>
+              <button type="button" class="chip-btn" data-year="Year 13">Year 13</button>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <span class="filter-label">Type</span>
+            <div class="chip-row" id="typeFilterGroup" aria-label="Filter by type">
+              <button type="button" class="chip-btn is-active" data-type="all">All types</button>
+              <button type="button" class="chip-btn" data-type="Build">Build</button>
+              <button type="button" class="chip-btn" data-type="Repair">Repair</button>
+              <button type="button" class="chip-btn" data-type="Design">Design</button>
+              <button type="button" class="chip-btn" data-type="Finishing">Finishing</button>
+              <button type="button" class="chip-btn" data-type="Worksheet">Worksheet</button>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <span class="filter-label">Category</span>
+            <div class="chip-row" id="categoryFilterGroup" aria-label="Filter by category">
+              <button type="button" class="chip-btn is-active" data-category="all">All categories</button>
+            </div>
+          </div>
+
           <label class="field field-compact">
-            <span>Year Level</span>
-            <select id="yearFilter">
-              <option value="all">All levels</option>
-              <option value="Junior">Junior</option>
-              <option value="Year 7">Year 7</option>
-              <option value="Year 8">Year 8</option>
-              <option value="Middle">Middle</option>
-              <option value="Year 9">Year 9</option>
-              <option value="Year 10">Year 10</option>
-              <option value="Senior">Senior</option>
-              <option value="Year 11">Year 11</option>
-              <option value="Year 12">Year 12</option>
-              <option value="Year 13">Year 13</option>
-            </select>
-          </label>
-          <label class="field field-compact">
-            <span>Type</span>
-            <select id="typeFilter">
-              <option value="all">All types</option>
-              <option value="Build">Build</option>
-              <option value="Repair">Repair</option>
-              <option value="Design">Design</option>
-              <option value="Finishing">Finishing</option>
-            </select>
-          </label>
-          <label class="field field-compact">
-            <span>Sort</span>
+            <span>Sort by</span>
             <select id="sortSelect">
               <option value="name">Name (A-Z)</option>
-              <option value="duration">Duration (short-long)</option>
-              <option value="skill">Skill (beginner-advanced)</option>
+              <option value="year">Year level</option>
+              <option value="type">Type</option>
+              <option value="category">Category</option>
             </select>
           </label>
         </div>

@@ -61,7 +61,7 @@ const thisWeekActivities = [
   }
 ];
 
-const libraryActivities = [
+const seedLibraryActivities = [
   ...thisWeekActivities,
   {
     title: "Floating Shelf Joinery",
@@ -135,15 +135,27 @@ const libraryActivities = [
   }
 ];
 
+let worksheetLibraryItems = [];
+let libraryItems = [];
+
 const thisWeekGrid = document.getElementById("thisWeekGrid");
 const libraryGrid = document.getElementById("libraryGrid");
 const activityCounter = document.getElementById("activityCounter");
 const libraryStats = document.getElementById("libraryStats");
 
 const searchInput = document.getElementById("searchInput");
-const yearFilter = document.getElementById("yearFilter");
-const typeFilter = document.getElementById("typeFilter");
+const showFilterGroup = document.getElementById("showFilterGroup");
+const yearFilterGroup = document.getElementById("yearFilterGroup");
+const typeFilterGroup = document.getElementById("typeFilterGroup");
+const categoryFilterGroup = document.getElementById("categoryFilterGroup");
 const sortSelect = document.getElementById("sortSelect");
+
+const filterState = {
+  show: "all",
+  year: "all",
+  type: "all",
+  category: "all",
+};
 
 const YEAR_LEVEL_GROUPS = {
   Junior: ["Year 7", "Year 8"],
@@ -151,7 +163,7 @@ const YEAR_LEVEL_GROUPS = {
   Senior: ["Year 11", "Year 12", "Year 13"],
 };
 
-function buildPlaceholder(title, type) {
+function buildPlaceholder(title, type, footerLabel = "Workshop Activity") {
   const palette = {
     Build: ["#234d7c", "#3f89c9"],
     Repair: ["#34543c", "#5b9b5f"],
@@ -174,7 +186,7 @@ function buildPlaceholder(title, type) {
       <circle cx="760" cy="90" r="140" fill="rgba(255,255,255,0.2)" />
       <rect x="52" y="390" width="796" height="118" rx="18" fill="rgba(10,23,37,0.35)" />
       <text x="80" y="450" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="700">${safeTitle}</text>
-      <text x="80" y="494" fill="#deefff" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600">Workshop Activity</text>
+      <text x="80" y="494" fill="#deefff" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600">${footerLabel}</text>
     </svg>
   `;
 
@@ -183,6 +195,122 @@ function buildPlaceholder(title, type) {
 
 function durationLabel(hours) {
   return `${hours} hr${hours > 1 ? "s" : ""}`;
+}
+
+function normaliseActivity(activity) {
+  return {
+    ...activity,
+    kind: "activity",
+    category: "Activity",
+    uploadType: activity.uploadType || "ACTIVITY",
+    keywords: [activity.type, activity.skillLabel, "activity"].filter(Boolean).join(" "),
+    image: activity.image || buildPlaceholder(activity.title, activity.type, "Workshop Activity"),
+  };
+}
+
+function mapWorksheetToLibraryItem(worksheet) {
+  const strandLabel = worksheet.strand_number
+    ? `Strand ${worksheet.strand_number}${worksheet.strand_title ? ` - ${worksheet.strand_title}` : ""}`
+    : (worksheet.strand_title || "");
+
+  const descriptionBits = [
+    worksheet.worksheet_category ? `Category: ${worksheet.worksheet_category}` : null,
+    strandLabel ? `Strand: ${strandLabel}` : null,
+    worksheet.lesson_note_title ? `Lesson note: ${worksheet.lesson_note_title}` : null,
+  ].filter(Boolean);
+
+  return {
+    title: worksheet.worksheet_title || "Untitled Worksheet",
+    year: worksheet.year_level || "Junior",
+    type: "Worksheet",
+    duration: null,
+    skill: null,
+    skillLabel: worksheet.worksheet_category || "Worksheet",
+    description: descriptionBits.length
+      ? descriptionBits.join(" • ")
+      : "Worksheet resource available in the Workshop Library.",
+    kind: "worksheet",
+    category: worksheet.worksheet_category || "Worksheet",
+    uploadType: "WORKSHEET",
+    keywords: ["worksheet", worksheet.worksheet_category, worksheet.strand_title, worksheet.lesson_note_title].filter(Boolean).join(" "),
+    image: buildPlaceholder(worksheet.worksheet_title || "Worksheet", "Design", "Workshop Worksheet"),
+  };
+}
+
+function rebuildLibraryItems() {
+  libraryItems = [
+    ...seedLibraryActivities.map(normaliseActivity),
+    ...worksheetLibraryItems,
+  ];
+
+  activityCounter.textContent = `${libraryItems.length} items in the student library`;
+}
+
+function renderCategoryFilters() {
+  const uniqueCategories = [...new Set(libraryItems.map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const buttons = [
+    '<button type="button" class="chip-btn is-active" data-category="all">All categories</button>',
+    ...uniqueCategories.map((category) => `<button type="button" class="chip-btn" data-category="${category}">${category}</button>`),
+  ];
+
+  categoryFilterGroup.innerHTML = buttons.join("");
+}
+
+function setActiveButton(container, selector, activeValue, attrName) {
+  const nodes = container.querySelectorAll(selector);
+  nodes.forEach((node) => {
+    node.classList.toggle("is-active", node.getAttribute(attrName) === activeValue);
+  });
+}
+
+function wireFilterButtons() {
+  showFilterGroup.addEventListener("click", (event) => {
+    const target = event.target.closest("button[data-show]");
+    if (!target) return;
+    filterState.show = target.dataset.show || "all";
+    setActiveButton(showFilterGroup, "button[data-show]", filterState.show, "data-show");
+    renderLibrary();
+  });
+
+  yearFilterGroup.addEventListener("click", (event) => {
+    const target = event.target.closest("button[data-year]");
+    if (!target) return;
+    filterState.year = target.dataset.year || "all";
+    setActiveButton(yearFilterGroup, "button[data-year]", filterState.year, "data-year");
+    renderLibrary();
+  });
+
+  typeFilterGroup.addEventListener("click", (event) => {
+    const target = event.target.closest("button[data-type]");
+    if (!target) return;
+    filterState.type = target.dataset.type || "all";
+    setActiveButton(typeFilterGroup, "button[data-type]", filterState.type, "data-type");
+    renderLibrary();
+  });
+
+  categoryFilterGroup.addEventListener("click", (event) => {
+    const target = event.target.closest("button[data-category]");
+    if (!target) return;
+    filterState.category = target.dataset.category || "all";
+    setActiveButton(categoryFilterGroup, "button[data-category]", filterState.category, "data-category");
+    renderLibrary();
+  });
+}
+
+async function loadWorksheetLibraryItems() {
+  try {
+    const response = await fetch("/api/worksheets", { cache: "no-store" });
+    if (!response.ok) {
+      worksheetLibraryItems = [];
+      return;
+    }
+
+    const json = await response.json();
+    const worksheets = Array.isArray(json.worksheets) ? json.worksheets : [];
+    worksheetLibraryItems = worksheets.map(mapWorksheetToLibraryItem);
+  } catch {
+    worksheetLibraryItems = [];
+  }
 }
 
 function createCard(activity) {
@@ -199,15 +327,23 @@ function createCard(activity) {
     uploadType = "ASSESSMENT TASK";
   }
 
+  const tags = [
+    `<span class="tag">${activity.year}</span>`,
+    `<span class="tag">${activity.type}</span>`,
+  ];
+
+  if (typeof activity.duration === "number" && activity.duration > 0) {
+    tags.push(`<span class="tag">${durationLabel(activity.duration)}</span>`);
+  }
+
+  if (activity.skillLabel) {
+    tags.push(`<span class="tag">${activity.skillLabel}</span>`);
+  }
+
   card.innerHTML = `
     <img class="thumb" src="${activity.image}" alt="${activity.title}" loading="lazy" />
     <div class="card-content">
-      <div class="tags">
-        <span class="tag">${activity.year}</span>
-        <span class="tag">${activity.type}</span>
-        <span class="tag">${durationLabel(activity.duration)}</span>
-        <span class="tag">${activity.skillLabel}</span>
-      </div>
+      <div class="tags">${tags.join("")}</div>
       <h3 class="card-title">${activity.title}</h3>
       <p class="card-desc">${activity.description}</p>
     </div>
@@ -224,33 +360,46 @@ function renderThisWeek() {
 
 function getFilteredLibrary() {
   const searchValue = searchInput.value.trim().toLowerCase();
-  const selectedYear = yearFilter.value;
-  const selectedType = typeFilter.value;
+  const selectedShow = filterState.show;
+  const selectedYear = filterState.year;
+  const selectedType = filterState.type;
+  const selectedCategory = filterState.category;
   const sortBy = sortSelect.value;
 
-  const filtered = libraryActivities.filter((activity) => {
+  const filtered = libraryItems.filter((activity) => {
+    const matchesShow = selectedShow === "all"
+      || (selectedShow === "activities" && activity.kind === "activity")
+      || (selectedShow === "worksheets" && activity.kind === "worksheet");
+
     const matchesSearch =
       searchValue.length === 0 ||
       activity.title.toLowerCase().includes(searchValue) ||
       activity.description.toLowerCase().includes(searchValue) ||
-      activity.type.toLowerCase().includes(searchValue);
+      activity.type.toLowerCase().includes(searchValue) ||
+      String(activity.category || "").toLowerCase().includes(searchValue) ||
+      String(activity.keywords || "").toLowerCase().includes(searchValue);
 
     const selectedYearIsGroup = Object.prototype.hasOwnProperty.call(YEAR_LEVEL_GROUPS, selectedYear);
     const matchesYear = selectedYear === "all"
       || activity.year === selectedYear
       || (selectedYearIsGroup && YEAR_LEVEL_GROUPS[selectedYear].includes(activity.year));
     const matchesType = selectedType === "all" || activity.type === selectedType;
+    const matchesCategory = selectedCategory === "all" || activity.category === selectedCategory;
 
-    return matchesSearch && matchesYear && matchesType;
+    return matchesShow && matchesSearch && matchesYear && matchesType && matchesCategory;
   });
 
   filtered.sort((a, b) => {
-    if (sortBy === "duration") {
-      return a.duration - b.duration;
+    if (sortBy === "year") {
+      return a.year.localeCompare(b.year);
     }
 
-    if (sortBy === "skill") {
-      return a.skill - b.skill;
+    if (sortBy === "type") {
+      return a.type.localeCompare(b.type);
+    }
+
+    if (sortBy === "category") {
+      return String(a.category || "").localeCompare(String(b.category || ""));
     }
 
     return a.title.localeCompare(b.title);
@@ -266,13 +415,13 @@ function renderLibrary() {
   if (activities.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "No activities match these filters. Try broadening the search.";
+    empty.textContent = "No items match these filters. Try broadening the search.";
     libraryGrid.appendChild(empty);
   } else {
     activities.forEach((activity) => libraryGrid.appendChild(createCard(activity)));
   }
 
-  libraryStats.textContent = `${activities.length} shown`;
+  libraryStats.textContent = `${activities.length} items shown`;
 }
 
 // ── Google Auth ────────────────────────────────────────────────────────────
@@ -324,16 +473,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', () => dropdown.classList.remove('open'));
 });
 
-function initialise() {
-  libraryActivities.forEach((activity) => {
-    activity.image = buildPlaceholder(activity.title, activity.type);
-  });
-
-  activityCounter.textContent = `${libraryActivities.length} activities in the student library`;
+async function initialise() {
+  await loadWorksheetLibraryItems();
+  rebuildLibraryItems();
+  renderCategoryFilters();
   renderThisWeek();
   renderLibrary();
 
-  [searchInput, yearFilter, typeFilter, sortSelect].forEach((el) => {
+  wireFilterButtons();
+  [searchInput, sortSelect].forEach((el) => {
     el.addEventListener("input", renderLibrary);
     el.addEventListener("change", renderLibrary);
   });
