@@ -159,14 +159,55 @@ async function extractWorksheetStructureFromDocx(buffer) {
   let currentStrand = null;
 
   for (const paragraph of paragraphs) {
-    const strandMatch = paragraph.match(/^Strand\s*(\d+)\s*[-:]\s*(.+?)\s*Lesson\s*Notes?$/i);
-    if (strandMatch) {
-      const strandNumber = Number.parseInt(strandMatch[1], 10);
-      const strandTitle = String(strandMatch[2] || '').trim() || null;
+    const combinedStrandLessonMatch = paragraph.match(/^Strand\s*(\d+)\s*[-:]\s*(.+?)\s*Lesson\s*Notes?$/i);
+    if (combinedStrandLessonMatch) {
+      const strandNumber = Number.parseInt(combinedStrandLessonMatch[1], 10);
+      const strandTitle = String(combinedStrandLessonMatch[2] || '').trim() || null;
       currentStrand = { strandNumber, strandTitle };
 
       lessonNotes.push({
         lessonNoteTitle: paragraph,
+        strandNumber,
+        strandTitle,
+      });
+      continue;
+    }
+
+    const strandOnlyMatch = paragraph.match(/^Strand\s*(\d+)\b(?:\s*[-:]\s*(.+))?$/i);
+    if (strandOnlyMatch) {
+      const strandNumber = Number.parseInt(strandOnlyMatch[1], 10);
+      const strandTitle = String(strandOnlyMatch[2] || '').trim() || null;
+      currentStrand = { strandNumber, strandTitle };
+      continue;
+    }
+
+    const isLessonNoteLine = /lesson\s*notes?/i.test(paragraph) && !/worksheet\b/i.test(paragraph);
+    if (isLessonNoteLine) {
+      const notesAfterPrefix = paragraph.match(/^Lesson\s*Notes?\s*[-:]\s*(.+)$/i);
+      const notesBeforeSuffix = paragraph.match(/^(.+?)\s*[-:]?\s*Lesson\s*Notes?$/i);
+
+      const extractedStrandTitle = String(
+        (notesAfterPrefix && notesAfterPrefix[1])
+        || (notesBeforeSuffix && notesBeforeSuffix[1])
+        || ''
+      ).trim() || null;
+
+      const strandNumber = currentStrand && Number.isInteger(currentStrand.strandNumber)
+        ? currentStrand.strandNumber
+        : null;
+
+      const strandTitle = extractedStrandTitle || (currentStrand ? currentStrand.strandTitle : null);
+
+      if (currentStrand && !currentStrand.strandTitle && strandTitle) {
+        currentStrand.strandTitle = strandTitle;
+      }
+
+      const lessonNoteTitle = strandNumber !== null
+        ? `Strand ${strandNumber}${strandTitle ? ` - ${strandTitle}` : ''} Lesson Notes`
+        : paragraph;
+
+      lessonNotes.push({
+        lessonNoteTitle,
         strandNumber,
         strandTitle,
       });
@@ -182,8 +223,13 @@ async function extractWorksheetStructureFromDocx(buffer) {
     }
   }
 
+  const dedupedLessonNotes = lessonNotes.filter((note, index, list) => {
+    const key = `${note.strandNumber || ''}|${String(note.strandTitle || '').toLowerCase()}|${String(note.lessonNoteTitle || '').toLowerCase()}`;
+    return list.findIndex(item => `${item.strandNumber || ''}|${String(item.strandTitle || '').toLowerCase()}|${String(item.lessonNoteTitle || '').toLowerCase()}` === key) === index;
+  });
+
   return {
-    lessonNotes,
+    lessonNotes: dedupedLessonNotes,
     worksheets,
   };
 }
