@@ -223,7 +223,7 @@ async function extractWorksheetStructureFromDocx(buffer) {
       continue;
     }
 
-    const isLessonNoteLine = /lesson\s*notes?/i.test(paragraph) && !/worksheet\b/i.test(paragraph);
+    const isLessonNoteLine = /lesson\s*notes?/i.test(paragraph);
     if (isLessonNoteLine) {
       const notesAfterPrefix = paragraph.match(/^Lesson\s*Notes?\s*[-:]\s*(.+)$/i);
       const notesBeforeSuffix = paragraph.match(/^(.+?)\s*[-:]?\s*Lesson\s*Notes?$/i);
@@ -238,7 +238,9 @@ async function extractWorksheetStructureFromDocx(buffer) {
         ? currentStrand.strandNumber
         : null;
 
-      const strandTitle = extractedStrandTitle || (currentStrand ? currentStrand.strandTitle : null);
+      const strandTitle = strandNumber === null
+        ? ((currentStrand && currentStrand.strandTitle) || extractedStrandTitle || null)
+        : (extractedStrandTitle || (currentStrand ? currentStrand.strandTitle : null));
 
       if (currentStrand && !currentStrand.strandTitle && strandTitle) {
         currentStrand.strandTitle = strandTitle;
@@ -247,7 +249,7 @@ async function extractWorksheetStructureFromDocx(buffer) {
       const lessonNoteTitle = strandNumber !== null
         ? `Strand ${strandNumber}${strandTitle ? ` - ${strandTitle}` : ''} Lesson Notes`
         : ((currentStrand && currentStrand.strandTitle)
-          ? `${currentStrand.strandTitle} Lesson Notes`
+          ? `${currentStrand.strandTitle} Lesson Notes${extractedStrandTitle && extractedStrandTitle.toLowerCase() !== currentStrand.strandTitle.toLowerCase() ? ` - ${extractedStrandTitle}` : ''}`
           : paragraph);
 
       lessonNotes.push({
