@@ -119,20 +119,22 @@ function normaliseSyncText(value) {
 
 function worksheetSyncKey(entry) {
   const title = normaliseSyncText(entry.worksheetTitle ?? entry.worksheet_title);
+  const strandTitle = normaliseSyncText(entry.strandTitle ?? entry.strand_title);
   const strandNumber = Number.isInteger(entry.strandNumber)
     ? entry.strandNumber
     : (Number.isInteger(entry.strand_number) ? entry.strand_number : null);
   const strandPart = strandNumber === null ? 'no-strand' : `strand-${strandNumber}`;
-  return `${strandPart}|${title}`;
+  return `${strandPart}|strand-title-${strandTitle || 'none'}|${title}`;
 }
 
 function lessonNoteSyncKey(entry) {
   const title = normaliseSyncText(entry.lessonNoteTitle ?? entry.lesson_note_title);
+  const strandTitle = normaliseSyncText(entry.strandTitle ?? entry.strand_title);
   const strandNumber = Number.isInteger(entry.strandNumber)
     ? entry.strandNumber
     : (Number.isInteger(entry.strand_number) ? entry.strand_number : null);
   const strandPart = strandNumber === null ? 'no-strand' : `strand-${strandNumber}`;
-  return `${strandPart}|${title}`;
+  return `${strandPart}|strand-title-${strandTitle || 'none'}|${title}`;
 }
 
 async function extractWorksheetTitlesFromDocx(buffer) {
@@ -181,6 +183,24 @@ async function extractWorksheetStructureFromDocx(buffer) {
   let currentStrand = null;
 
   for (const paragraph of paragraphs) {
+    const genericResourcesMatch = paragraph.match(/^(.+?)\s+Resources?$/i);
+    if (
+      genericResourcesMatch
+      && !/^Strand\s*\d+/i.test(paragraph)
+      && !/worksheet\b/i.test(paragraph)
+      && !/lesson\s*notes?/i.test(paragraph)
+    ) {
+      const baseTitle = String(genericResourcesMatch[1] || '').trim();
+      const strandTitle = /\bdvc\b/i.test(baseTitle)
+        ? 'DVC'
+        : baseTitle;
+      currentStrand = {
+        strandNumber: null,
+        strandTitle: strandTitle || null,
+      };
+      continue;
+    }
+
     const combinedStrandLessonMatch = paragraph.match(/^Strand\s*(\d+)\s*[-:]\s*(.+?)\s*Lesson\s*Notes?$/i);
     if (combinedStrandLessonMatch) {
       const strandNumber = Number.parseInt(combinedStrandLessonMatch[1], 10);
@@ -226,7 +246,9 @@ async function extractWorksheetStructureFromDocx(buffer) {
 
       const lessonNoteTitle = strandNumber !== null
         ? `Strand ${strandNumber}${strandTitle ? ` - ${strandTitle}` : ''} Lesson Notes`
-        : paragraph;
+        : ((currentStrand && currentStrand.strandTitle)
+          ? `${currentStrand.strandTitle} Lesson Notes`
+          : paragraph);
 
       lessonNotes.push({
         lessonNoteTitle,
@@ -1253,6 +1275,7 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
           }
 
           const lessonNoteIdByStrand = new Map();
+          const lessonNoteIdByStrandTitle = new Map();
           const keptLessonNoteIds = new Set();
           const existingLessonNotesResult = await pool.query(
             `SELECT id, lesson_note_title, strand_number, strand_title
@@ -1320,6 +1343,9 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
             if (syncedNote && Number.isInteger(syncedNote.strand_number)) {
               lessonNoteIdByStrand.set(syncedNote.strand_number, syncedNote.id);
             }
+            if (syncedNote && syncedNote.strand_title) {
+              lessonNoteIdByStrandTitle.set(normaliseSyncText(syncedNote.strand_title), syncedNote.id);
+            }
           }
 
           for (const existingNote of existingLessonNotes) {
@@ -1353,9 +1379,13 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
             const worksheetTitle = worksheetMeta.worksheetTitle;
             const strandNumber = Number.isInteger(worksheetMeta.strandNumber) ? worksheetMeta.strandNumber : null;
             const strandTitle = worksheetMeta.strandTitle || null;
-            const linkedLessonNoteId = strandNumber !== null && lessonNoteIdByStrand.has(strandNumber)
+            const linkedByNumber = strandNumber !== null && lessonNoteIdByStrand.has(strandNumber)
               ? lessonNoteIdByStrand.get(strandNumber)
               : null;
+            const linkedByTitle = strandTitle && lessonNoteIdByStrandTitle.has(normaliseSyncText(strandTitle))
+              ? lessonNoteIdByStrandTitle.get(normaliseSyncText(strandTitle))
+              : null;
+            const linkedLessonNoteId = linkedByNumber || linkedByTitle || null;
             const worksheetCategory = worksheetCategoryInput && worksheetCategoryInput !== 'Auto-detect'
               ? worksheetCategoryInput
               : inferWorksheetCategory(worksheetTitle);
@@ -1647,6 +1677,15 @@ app.post('/api/lesson-notes/upload', requireAuth, requireAdminOrLead, uploadWork
                AND strand_number = $3
                AND (lesson_note_id IS NULL OR file_name = $4)`,
             [synced.id, synced.year_level, synced.strand_number, req.file.originalname]
+          );
+        } else if (synced.strand_title) {
+          await pool.query(
+            `UPDATE uploaded_worksheets
+             SET lesson_note_id = $1
+             WHERE year_level = $2
+               AND LOWER(COALESCE(strand_title, '')) = LOWER($3)
+               AND (lesson_note_id IS NULL OR file_name = $4)`,
+            [synced.id, synced.year_level, synced.strand_title, req.file.originalname]
           );
         }
       }
