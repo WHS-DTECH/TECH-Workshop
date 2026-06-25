@@ -75,6 +75,27 @@ const uploadTopicsDocx = multer({
   }
 });
 
+const uploadWorksheetFile = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
+
+    const allowedExtension = name.endsWith('.pdf') || name.endsWith('.docx') || name.endsWith('.doc');
+    if (allowedMimeTypes.includes(file.mimetype) || allowedExtension) {
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error('Only PDF and Word files are allowed for worksheets.'));
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const appDatabaseUrl = process.env.APP_DATABASE_URL || process.env.DATABASE_URL;
@@ -313,6 +334,20 @@ async function initDB() {
       planner JSONB NOT NULL,
       imported_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_worksheets (
+      id SERIAL PRIMARY KEY,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      worksheet_title VARCHAR(255) NOT NULL,
+      year_level VARCHAR(50) NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      file_mime VARCHAR(120),
+      file_size INTEGER,
+      file_data BYTEA NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -973,6 +1008,94 @@ app.post('/api/topics/import-docx', requireAuth, requireAdminOrLead, uploadTopic
   } catch (error) {
     console.error('Topic DOCX import error:', error);
     res.status(400).json({ error: error.message || 'Failed to import topic document.' });
+  }
+});
+
+app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksheetFile.single('worksheet_file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose a worksheet file to upload.' });
+    }
+
+    const worksheetTitle = String(req.body.worksheet_title || '').trim() || String(req.file.originalname || '').replace(/\.[^.]+$/, '');
+    const yearLevel = String(req.body.year_level || '').trim();
+
+    if (!worksheetTitle) {
+      return res.status(400).json({ error: 'Worksheet title is required.' });
+    }
+
+    if (!yearLevel) {
+      return res.status(400).json({ error: 'Year level is required.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO uploaded_worksheets (
+        created_by, worksheet_title, year_level, file_name, file_mime, file_size, file_data
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, worksheet_title, year_level, file_name, file_mime, file_size, created_at`,
+      [
+        req.user.id,
+        worksheetTitle,
+        yearLevel,
+        req.file.originalname,
+        req.file.mimetype || null,
+        req.file.size || null,
+        req.file.buffer,
+      ]
+    );
+
+    res.json({ success: true, worksheet: result.rows[0] });
+  } catch (error) {
+    console.error('Worksheet upload error:', error);
+    res.status(400).json({ error: error.message || 'Failed to upload worksheet.' });
+  }
+});
+
+app.get('/api/worksheets', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, worksheet_title, year_level, file_name, file_mime, file_size, created_at
+       FROM uploaded_worksheets
+       ORDER BY created_at DESC, id DESC`
+    );
+
+    res.json({ worksheets: result.rows });
+  } catch (error) {
+    console.error('Worksheets fetch error:', error);
+    res.status(500).json({ error: 'Failed to load worksheets.' });
+  }
+});
+
+app.get('/api/worksheets/:id/file', requireAuth, async (req, res) => {
+  try {
+    const worksheetId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(worksheetId) || worksheetId <= 0) {
+      return res.status(400).json({ error: 'Invalid worksheet ID.' });
+    }
+
+    const result = await pool.query(
+      `SELECT file_data, file_name, file_mime
+       FROM uploaded_worksheets
+       WHERE id = $1`,
+      [worksheetId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Worksheet not found.' });
+    }
+
+    const row = result.rows[0];
+    const mime = row.file_mime || 'application/octet-stream';
+    const fileName = row.file_name || `worksheet-${worksheetId}`;
+    const download = String(req.query.download || '').toLowerCase() === '1';
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
+    res.send(row.file_data);
+  } catch (error) {
+    console.error('Worksheet file fetch error:', error);
+    res.status(500).json({ error: 'Failed to load worksheet file.' });
   }
 });
 

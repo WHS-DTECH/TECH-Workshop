@@ -1168,6 +1168,20 @@ body {
   font-weight: 700;
 }
 
+.worksheet-table-wrap {
+  overflow-x: auto;
+}
+
+.worksheet-table td,
+.worksheet-table th {
+  vertical-align: middle;
+}
+
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 0.72rem;
+}
+
 .upload-assessment-panel {
   max-width: 980px;
 }

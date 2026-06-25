@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worksheets Manager - Workshop</title>
+  <link rel="icon" href="images/favicon.ico" sizes="any" />
+  <link rel="shortcut icon" href="images/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="/navbar-loader.js"></script>
+</head>
+<body>
+  <header class="top-strip"></header>
+
+  <main class="page-shell upload-shell">
+    <section class="upload-header">
+      <h1>Worksheets Manager</h1>
+      <p>Upload worksheet files and share clickable review links for students and teachers.</p>
+    </section>
+
+    <section class="upload-alert" id="worksheetUploadAlert" data-type="warning">
+      Sign in with your school Google account before uploading worksheet files.
+    </section>
+
+    <section class="upload-panel">
+      <form id="worksheetUploadForm" enctype="multipart/form-data" novalidate>
+        <h2>Upload Worksheet</h2>
+
+        <div class="upload-grid two-col">
+          <label>
+            <span>Worksheet Title</span>
+            <input type="text" id="worksheetTitle" name="worksheet_title" placeholder="e.g. Year 7_8 Woodwork Teaching and Learning Resources" required />
+          </label>
+
+          <label>
+            <span>Year Level</span>
+            <select name="year_level" id="worksheetYearLevel" required>
+              <option value="Junior" selected>Junior</option>
+              <option value="Year 7">Year 7</option>
+              <option value="Year 8">Year 8</option>
+              <option value="Middle">Middle</option>
+              <option value="Year 9">Year 9</option>
+              <option value="Year 10">Year 10</option>
+              <option value="Senior">Senior</option>
+              <option value="Year 11">Year 11</option>
+              <option value="Year 12">Year 12</option>
+              <option value="Year 13">Year 13</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Worksheet File</span>
+            <input
+              type="file"
+              id="worksheetFile"
+              name="worksheet_file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              required
+            />
+          </label>
+        </div>
+
+        <p class="upload-helper">Start with: TeacherFiles\Worksheets\Year 7_8 - Woodwork - Teaching and Learning Resources.docx</p>
+
+        <div class="upload-actions">
+          <button type="submit" class="btn btn-primary" id="uploadWorksheetBtn" disabled>Upload Worksheet</button>
+          <a href="/" class="btn btn-secondary">Back to Hub</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="upload-panel" style="margin-top:14px">
+      <h2>Worksheet Library</h2>
+      <p class="upload-helper">Click Review to open the worksheet in-browser (or download if your browser cannot preview that file type).</p>
+      <div class="worksheet-table-wrap">
+        <table class="planner-table worksheet-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Year Level</th>
+              <th>File</th>
+              <th>Uploaded</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody id="worksheetListBody">
+            <tr><td colspan="5" class="planner-empty">Loading worksheets...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <p class="footer-copy">© 2026 Westland High School - Workshop Woodwork &amp; Furniture Hub</p>
+      <a href="/" class="btn btn-suggest-footer">Open Hub</a>
+    </div>
+  </footer>
+
+  <script src="worksheets_manager.js"></script>
+</body>
+</html>
