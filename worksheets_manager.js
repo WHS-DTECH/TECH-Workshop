@@ -59,7 +59,7 @@ function formatDate(value) {
 
 function renderWorksheetRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    worksheetListBody.innerHTML = '<tr><td colspan="8" class="planner-empty">No worksheets uploaded yet.</td></tr>';
+    worksheetListBody.innerHTML = '<tr><td colspan="9" class="planner-empty">No worksheets uploaded yet.</td></tr>';
     return;
   }
 
@@ -86,6 +86,11 @@ function renderWorksheetRows(items) {
         <td>
           <a class="btn btn-secondary btn-sm" href="${reviewHref}" target="_blank" rel="noopener">Review</a>
         </td>
+        <td>
+          ${canManageWorksheets
+            ? `<button type="button" class="btn btn-danger btn-sm" data-delete-worksheet-id="${esc(item.id)}" data-delete-worksheet-title="${esc(item.worksheet_title || 'worksheet')}">Delete</button>`
+            : '<span class="topic-empty">-</span>'}
+        </td>
       </tr>
     `;
   }).join('');
@@ -93,7 +98,7 @@ function renderWorksheetRows(items) {
 
 function renderLessonNoteRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    lessonNotesListBody.innerHTML = '<tr><td colspan="6" class="planner-empty">No lesson notes uploaded yet.</td></tr>';
+    lessonNotesListBody.innerHTML = '<tr><td colspan="7" class="planner-empty">No lesson notes uploaded yet.</td></tr>';
     return;
   }
 
@@ -114,6 +119,11 @@ function renderLessonNoteRows(items) {
         <td>${esc(String(item.linked_worksheet_count ?? 0))}</td>
         <td>${esc(formatDate(item.created_at))}</td>
         <td>${reviewAction}</td>
+        <td>
+          ${canManageWorksheets
+            ? `<button type="button" class="btn btn-danger btn-sm" data-delete-lesson-note-id="${esc(item.id)}" data-delete-lesson-note-title="${esc(item.lesson_note_title || 'lesson note')}">Delete</button>`
+            : '<span class="topic-empty">-</span>'}
+        </td>
       </tr>
     `;
   }).join('');
@@ -130,7 +140,7 @@ async function loadWorksheets() {
 
     renderWorksheetRows(Array.isArray(json.worksheets) ? json.worksheets : []);
   } catch (error) {
-    worksheetListBody.innerHTML = `<tr><td colspan="8" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
+    worksheetListBody.innerHTML = `<tr><td colspan="9" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
   }
 }
 
@@ -145,7 +155,63 @@ async function loadLessonNotes() {
 
     renderLessonNoteRows(Array.isArray(json.lessonNotes) ? json.lessonNotes : []);
   } catch (error) {
-    lessonNotesListBody.innerHTML = `<tr><td colspan="6" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
+    lessonNotesListBody.innerHTML = `<tr><td colspan="7" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
+  }
+}
+
+async function deleteWorksheetById(id, title) {
+  if (!canManageWorksheets) {
+    setAlert('warning', 'Only Admin and Lead Teacher accounts can delete worksheets.');
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete worksheet "${title}"? This action cannot be undone.`);
+  if (!confirmed) return;
+
+  setAlert('saving', 'Deleting worksheet...');
+
+  try {
+    const response = await fetch(`/api/worksheets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(json.error || 'Failed to delete worksheet.');
+    }
+
+    setAlert('success', `Deleted worksheet: ${json.worksheet.worksheet_title}.`);
+    await loadWorksheets();
+    await loadLessonNotes();
+  } catch (error) {
+    setAlert('error', error.message || 'Failed to delete worksheet.');
+  }
+}
+
+async function deleteLessonNoteById(id, title) {
+  if (!canManageWorksheets) {
+    setAlert('warning', 'Only Admin and Lead Teacher accounts can delete lesson notes.');
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete lesson note "${title}"? Linked worksheets will remain but be unlinked from this note.`);
+  if (!confirmed) return;
+
+  setAlert('saving', 'Deleting lesson note...');
+
+  try {
+    const response = await fetch(`/api/lesson-notes/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(json.error || 'Failed to delete lesson note.');
+    }
+
+    setAlert('success', `Deleted lesson note: ${json.lessonNote.lesson_note_title}.`);
+    await loadLessonNotes();
+    await loadWorksheets();
+  } catch (error) {
+    setAlert('error', error.message || 'Failed to delete lesson note.');
   }
 }
 
@@ -204,6 +270,8 @@ async function hydrateUserState() {
     }
 
     validateForm();
+    await loadWorksheets();
+    await loadLessonNotes();
   } catch {
     setAlert('error', 'Unable to check sign-in status. Refresh and try again.');
     canManageWorksheets = false;
@@ -290,8 +358,14 @@ lessonNoteForm.addEventListener('submit', async (event) => {
 
   const fileInput = document.getElementById('lessonNoteFile');
   const file = fileInput.files && fileInput.files[0];
+  const splitMode = document.getElementById('splitDocxLessonList').checked;
   if (!file) {
     setAlert('error', 'Please choose a lesson note file.');
+    return;
+  }
+
+  if (splitMode && !String(file.name || '').toLowerCase().endsWith('.docx')) {
+    setAlert('error', 'Lesson Note DOCX Split Mode only works with a single DOCX file.');
     return;
   }
 
@@ -310,7 +384,12 @@ lessonNoteForm.addEventListener('submit', async (event) => {
       throw new Error(json.error || 'Failed to upload lesson note.');
     }
 
-    setAlert('success', `Uploaded lesson note: ${json.lessonNote.lesson_note_title}.`);
+    const uploadedCount = Number(json.uploadedCount || 0);
+    if (uploadedCount > 1) {
+      setAlert('success', `Uploaded ${uploadedCount} lesson notes from DOCX split mode.`);
+    } else {
+      setAlert('success', `Uploaded lesson note: ${json.lessonNote.lesson_note_title}.`);
+    }
     lessonNoteForm.reset();
     document.getElementById('lessonNoteYearLevel').value = 'Junior';
     await loadLessonNotes();
@@ -320,6 +399,24 @@ lessonNoteForm.addEventListener('submit', async (event) => {
   } finally {
     validateForm();
   }
+});
+
+worksheetListBody.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-delete-worksheet-id]');
+  if (!button) return;
+
+  const worksheetId = button.getAttribute('data-delete-worksheet-id');
+  const worksheetTitle = button.getAttribute('data-delete-worksheet-title') || 'worksheet';
+  await deleteWorksheetById(worksheetId, worksheetTitle);
+});
+
+lessonNotesListBody.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-delete-lesson-note-id]');
+  if (!button) return;
+
+  const lessonNoteId = button.getAttribute('data-delete-lesson-note-id');
+  const lessonNoteTitle = button.getAttribute('data-delete-lesson-note-title') || 'lesson note';
+  await deleteLessonNoteById(lessonNoteId, lessonNoteTitle);
 });
 
 wireDropdowns();

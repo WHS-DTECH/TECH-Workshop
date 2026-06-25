@@ -1314,6 +1314,7 @@ app.post('/api/lesson-notes/upload', requireAuth, requireAdminOrLead, uploadWork
       return res.status(400).json({ error: 'Please choose a lesson note file to upload.' });
     }
 
+    const splitDocxLessonList = ['1', 'true', 'on', 'yes'].includes(String(req.body.split_docx_lesson_list || '').toLowerCase());
     const lessonNoteTitle = String(req.body.lesson_note_title || '').trim() || String(req.file.originalname || '').replace(/\.[^.]+$/, '');
     const yearLevel = String(req.body.year_level || '').trim();
     const strandNumberRaw = String(req.body.strand_number || '').trim();
@@ -1326,6 +1327,65 @@ app.post('/api/lesson-notes/upload', requireAuth, requireAdminOrLead, uploadWork
 
     if (!lessonNoteTitle) {
       return res.status(400).json({ error: 'Lesson note title is required.' });
+    }
+
+    if (splitDocxLessonList) {
+      const lowerName = String(req.file.originalname || '').toLowerCase();
+      if (!lowerName.endsWith('.docx')) {
+        return res.status(400).json({ error: 'Lesson Note DOCX Split Mode only works with a single DOCX file.' });
+      }
+
+      const parsedStructure = await extractWorksheetStructureFromDocx(req.file.buffer);
+      const parsedLessonNotes = parsedStructure.lessonNotes || [];
+
+      if (!parsedLessonNotes.length) {
+        return res.status(400).json({ error: 'No individual lesson notes were detected in this DOCX file.' });
+      }
+
+      const insertedRows = [];
+
+      for (const note of parsedLessonNotes) {
+        const noteResult = await pool.query(
+          `INSERT INTO uploaded_lesson_notes (
+            created_by, lesson_note_title, year_level, strand_number, strand_title,
+            source_file_name, source_file_mime, source_file_size, source_file_data
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id, lesson_note_title, year_level, strand_number, strand_title, source_file_name, created_at`,
+          [
+            req.user.id,
+            note.lessonNoteTitle,
+            yearLevel,
+            Number.isInteger(note.strandNumber) ? note.strandNumber : null,
+            note.strandTitle || null,
+            req.file.originalname,
+            req.file.mimetype || null,
+            req.file.size || null,
+            req.file.buffer,
+          ]
+        );
+
+        const inserted = noteResult.rows[0];
+        insertedRows.push(inserted);
+
+        if (Number.isInteger(inserted.strand_number)) {
+          await pool.query(
+            `UPDATE uploaded_worksheets
+             SET lesson_note_id = $1
+             WHERE lesson_note_id IS NULL
+               AND year_level = $2
+               AND strand_number = $3`,
+            [inserted.id, inserted.year_level, inserted.strand_number]
+          );
+        }
+      }
+
+      return res.json({
+        success: true,
+        uploadedCount: insertedRows.length,
+        lessonNotes: insertedRows,
+        lessonNote: insertedRows[0],
+      });
     }
 
     const result = await pool.query(
@@ -1348,10 +1408,60 @@ app.post('/api/lesson-notes/upload', requireAuth, requireAdminOrLead, uploadWork
       ]
     );
 
-    res.json({ success: true, lessonNote: result.rows[0] });
+    res.json({ success: true, uploadedCount: 1, lessonNotes: result.rows, lessonNote: result.rows[0] });
   } catch (error) {
     console.error('Lesson note upload error:', error);
     res.status(400).json({ error: error.message || 'Failed to upload lesson note.' });
+  }
+});
+
+app.delete('/api/worksheets/:id', requireAuth, requireAdminOrLead, async (req, res) => {
+  try {
+    const worksheetId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(worksheetId) || worksheetId <= 0) {
+      return res.status(400).json({ error: 'Invalid worksheet ID.' });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM uploaded_worksheets
+       WHERE id = $1
+       RETURNING id, worksheet_title`,
+      [worksheetId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Worksheet not found.' });
+    }
+
+    res.json({ success: true, worksheet: result.rows[0] });
+  } catch (error) {
+    console.error('Worksheet delete error:', error);
+    res.status(500).json({ error: 'Failed to delete worksheet.' });
+  }
+});
+
+app.delete('/api/lesson-notes/:id', requireAuth, requireAdminOrLead, async (req, res) => {
+  try {
+    const lessonNoteId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(lessonNoteId) || lessonNoteId <= 0) {
+      return res.status(400).json({ error: 'Invalid lesson note ID.' });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM uploaded_lesson_notes
+       WHERE id = $1
+       RETURNING id, lesson_note_title`,
+      [lessonNoteId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Lesson note not found.' });
+    }
+
+    res.json({ success: true, lessonNote: result.rows[0] });
+  } catch (error) {
+    console.error('Lesson note delete error:', error);
+    res.status(500).json({ error: 'Failed to delete lesson note.' });
   }
 });
 

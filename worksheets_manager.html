@@ -138,7 +138,17 @@
               required
             />
           </label>
+
+          <label class="upload-checkbox-label">
+            <span>DOCX Split Mode</span>
+            <span class="upload-checkbox-row">
+              <input type="checkbox" id="splitDocxLessonList" name="split_docx_lesson_list" value="1" />
+              Split a DOCX lesson note list into individual lesson-note rows.
+            </span>
+          </label>
         </div>
+
+        <p class="upload-helper">For list documents that include strand lesson-note headings, enable DOCX Split Mode to create individual lesson notes automatically.</p>
 
         <div class="upload-actions">
           <button type="submit" class="btn btn-primary" id="uploadLessonNoteBtn" disabled>Upload Lesson Note</button>
@@ -161,10 +171,11 @@
               <th>File</th>
               <th>Uploaded</th>
               <th>Review</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody id="worksheetListBody">
-            <tr><td colspan="8" class="planner-empty">Loading worksheets...</td></tr>
+            <tr><td colspan="9" class="planner-empty">Loading worksheets...</td></tr>
           </tbody>
         </table>
       </div>
@@ -183,10 +194,11 @@
               <th>Linked Worksheets</th>
               <th>Uploaded</th>
               <th>Review</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody id="lessonNotesListBody">
-            <tr><td colspan="6" class="planner-empty">Loading lesson notes...</td></tr>
+            <tr><td colspan="7" class="planner-empty">Loading lesson notes...</td></tr>
           </tbody>
         </table>
       </div>
