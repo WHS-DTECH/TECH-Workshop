@@ -138,6 +138,56 @@ async function extractWorksheetTitlesFromDocx(buffer) {
   return [...new Set(worksheetTitles)];
 }
 
+async function extractWorksheetStructureFromDocx(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const documentEntry = zip.file('word/document.xml');
+  if (!documentEntry) {
+    return { lessonNotes: [], worksheets: [] };
+  }
+
+  const documentXml = await documentEntry.async('string');
+  const paragraphMatches = [...String(documentXml || '').matchAll(/<w:p(?:\s|>)[\s\S]*?<\/w:p>/gi)];
+  const paragraphs = paragraphMatches.map((paragraphMatch) => {
+    const paragraphXml = paragraphMatch[0];
+    const textMatches = [...paragraphXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi)];
+    const text = textMatches.map(match => match[1]).join(' ');
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }).filter(Boolean);
+
+  const lessonNotes = [];
+  const worksheets = [];
+  let currentStrand = null;
+
+  for (const paragraph of paragraphs) {
+    const strandMatch = paragraph.match(/^Strand\s*(\d+)\s*[-:]\s*(.+?)\s*Lesson\s*Notes?$/i);
+    if (strandMatch) {
+      const strandNumber = Number.parseInt(strandMatch[1], 10);
+      const strandTitle = String(strandMatch[2] || '').trim() || null;
+      currentStrand = { strandNumber, strandTitle };
+
+      lessonNotes.push({
+        lessonNoteTitle: paragraph,
+        strandNumber,
+        strandTitle,
+      });
+      continue;
+    }
+
+    if (/worksheet\b/i.test(paragraph) && !/lesson\s*notes?/i.test(paragraph)) {
+      worksheets.push({
+        worksheetTitle: paragraph,
+        strandNumber: currentStrand ? currentStrand.strandNumber : null,
+        strandTitle: currentStrand ? currentStrand.strandTitle : null,
+      });
+    }
+  }
+
+  return {
+    lessonNotes,
+    worksheets,
+  };
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const appDatabaseUrl = process.env.APP_DATABASE_URL || process.env.DATABASE_URL;
@@ -380,12 +430,31 @@ async function initDB() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_lesson_notes (
+      id SERIAL PRIMARY KEY,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      lesson_note_title VARCHAR(255) NOT NULL,
+      year_level VARCHAR(50) NOT NULL,
+      strand_number INTEGER,
+      strand_title VARCHAR(255),
+      source_file_name VARCHAR(255),
+      source_file_mime VARCHAR(120),
+      source_file_size INTEGER,
+      source_file_data BYTEA,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS uploaded_worksheets (
       id SERIAL PRIMARY KEY,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       worksheet_title VARCHAR(255) NOT NULL,
       year_level VARCHAR(50) NOT NULL,
       worksheet_category VARCHAR(120),
+      strand_number INTEGER,
+      strand_title VARCHAR(255),
+      lesson_note_id INTEGER REFERENCES uploaded_lesson_notes(id) ON DELETE SET NULL,
       file_name VARCHAR(255) NOT NULL,
       file_mime VARCHAR(120),
       file_size INTEGER,
@@ -397,6 +466,21 @@ async function initDB() {
   await pool.query(`
     ALTER TABLE uploaded_worksheets
     ADD COLUMN IF NOT EXISTS worksheet_category VARCHAR(120);
+  `);
+
+  await pool.query(`
+    ALTER TABLE uploaded_worksheets
+    ADD COLUMN IF NOT EXISTS strand_number INTEGER;
+  `);
+
+  await pool.query(`
+    ALTER TABLE uploaded_worksheets
+    ADD COLUMN IF NOT EXISTS strand_title VARCHAR(255);
+  `);
+
+  await pool.query(`
+    ALTER TABLE uploaded_worksheets
+    ADD COLUMN IF NOT EXISTS lesson_note_id INTEGER REFERENCES uploaded_lesson_notes(id) ON DELETE SET NULL;
   `);
 
   // Seed default permissions if none exist
@@ -1086,25 +1170,68 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
       const lowerName = String(file.originalname || '').toLowerCase();
 
       if (splitDocxList && files.length === 1 && lowerName.endsWith('.docx')) {
-        const parsedTitles = await extractWorksheetTitlesFromDocx(file.buffer);
+        const parsedStructure = await extractWorksheetStructureFromDocx(file.buffer);
+        const parsedTitles = parsedStructure.worksheets.map(item => item.worksheetTitle);
 
         if (parsedTitles.length) {
+          const lessonNoteIdByStrand = new Map();
+
+          for (const note of parsedStructure.lessonNotes) {
+            const noteInsert = await pool.query(
+              `INSERT INTO uploaded_lesson_notes (
+                created_by, lesson_note_title, year_level, strand_number, strand_title,
+                source_file_name, source_file_mime, source_file_size, source_file_data
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              RETURNING id, strand_number`,
+              [
+                req.user.id,
+                note.lessonNoteTitle,
+                yearLevel,
+                Number.isInteger(note.strandNumber) ? note.strandNumber : null,
+                note.strandTitle || null,
+                file.originalname,
+                file.mimetype || null,
+                file.size || null,
+                file.buffer,
+              ]
+            );
+
+            const insertedNote = noteInsert.rows[0];
+            if (insertedNote && Number.isInteger(insertedNote.strand_number)) {
+              lessonNoteIdByStrand.set(insertedNote.strand_number, insertedNote.id);
+            }
+          }
+
           for (const parsedTitle of parsedTitles) {
+            const worksheetMeta = parsedStructure.worksheets.find(item => item.worksheetTitle === parsedTitle) || null;
+            const strandNumber = worksheetMeta && Number.isInteger(worksheetMeta.strandNumber)
+              ? worksheetMeta.strandNumber
+              : null;
+            const strandTitle = worksheetMeta ? worksheetMeta.strandTitle : null;
+            const linkedLessonNoteId = strandNumber !== null && lessonNoteIdByStrand.has(strandNumber)
+              ? lessonNoteIdByStrand.get(strandNumber)
+              : null;
             const worksheetCategory = worksheetCategoryInput && worksheetCategoryInput !== 'Auto-detect'
               ? worksheetCategoryInput
               : inferWorksheetCategory(parsedTitle);
 
             const result = await pool.query(
               `INSERT INTO uploaded_worksheets (
-                created_by, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, file_data
+                created_by, worksheet_title, year_level, worksheet_category, strand_number, strand_title,
+                lesson_note_id, file_name, file_mime, file_size, file_data
               )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-              RETURNING id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at`,
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              RETURNING id, worksheet_title, year_level, worksheet_category, strand_number, strand_title, lesson_note_id,
+                        file_name, file_mime, file_size, created_at`,
               [
                 req.user.id,
                 parsedTitle,
                 yearLevel,
                 worksheetCategory,
+                strandNumber,
+                strandTitle,
+                linkedLessonNoteId,
                 file.originalname,
                 file.mimetype || null,
                 file.size || null,
@@ -1130,10 +1257,12 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
 
       const result = await pool.query(
         `INSERT INTO uploaded_worksheets (
-          created_by, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, file_data
+          created_by, worksheet_title, year_level, worksheet_category, strand_number, strand_title,
+          lesson_note_id, file_name, file_mime, file_size, file_data
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at`,
+        VALUES ($1, $2, $3, $4, NULL, NULL, NULL, $5, $6, $7, $8)
+        RETURNING id, worksheet_title, year_level, worksheet_category, strand_number, strand_title, lesson_note_id,
+                  file_name, file_mime, file_size, created_at`,
         [
           req.user.id,
           worksheetTitle,
@@ -1164,15 +1293,120 @@ app.post('/api/worksheets/upload', requireAuth, requireAdminOrLead, uploadWorksh
 app.get('/api/worksheets', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, worksheet_title, year_level, worksheet_category, file_name, file_mime, file_size, created_at
-       FROM uploaded_worksheets
-       ORDER BY created_at DESC, id DESC`
+      `SELECT w.id, w.worksheet_title, w.year_level, w.worksheet_category, w.strand_number, w.strand_title,
+              w.lesson_note_id, w.file_name, w.file_mime, w.file_size, w.created_at,
+              ln.lesson_note_title
+       FROM uploaded_worksheets w
+       LEFT JOIN uploaded_lesson_notes ln ON ln.id = w.lesson_note_id
+       ORDER BY w.created_at DESC, w.id DESC`
     );
 
     res.json({ worksheets: result.rows });
   } catch (error) {
     console.error('Worksheets fetch error:', error);
     res.status(500).json({ error: 'Failed to load worksheets.' });
+  }
+});
+
+app.post('/api/lesson-notes/upload', requireAuth, requireAdminOrLead, uploadWorksheetFile.single('lesson_note_file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose a lesson note file to upload.' });
+    }
+
+    const lessonNoteTitle = String(req.body.lesson_note_title || '').trim() || String(req.file.originalname || '').replace(/\.[^.]+$/, '');
+    const yearLevel = String(req.body.year_level || '').trim();
+    const strandNumberRaw = String(req.body.strand_number || '').trim();
+    const strandNumber = strandNumberRaw ? Number.parseInt(strandNumberRaw, 10) : null;
+    const strandTitle = String(req.body.strand_title || '').trim() || null;
+
+    if (!yearLevel) {
+      return res.status(400).json({ error: 'Year level is required.' });
+    }
+
+    if (!lessonNoteTitle) {
+      return res.status(400).json({ error: 'Lesson note title is required.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO uploaded_lesson_notes (
+        created_by, lesson_note_title, year_level, strand_number, strand_title,
+        source_file_name, source_file_mime, source_file_size, source_file_data
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, lesson_note_title, year_level, strand_number, strand_title, source_file_name, created_at`,
+      [
+        req.user.id,
+        lessonNoteTitle,
+        yearLevel,
+        Number.isInteger(strandNumber) ? strandNumber : null,
+        strandTitle,
+        req.file.originalname,
+        req.file.mimetype || null,
+        req.file.size || null,
+        req.file.buffer,
+      ]
+    );
+
+    res.json({ success: true, lessonNote: result.rows[0] });
+  } catch (error) {
+    console.error('Lesson note upload error:', error);
+    res.status(400).json({ error: error.message || 'Failed to upload lesson note.' });
+  }
+});
+
+app.get('/api/lesson-notes', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ln.id, ln.lesson_note_title, ln.year_level, ln.strand_number, ln.strand_title,
+              ln.source_file_name, ln.created_at,
+              COUNT(w.id)::INTEGER AS linked_worksheet_count
+       FROM uploaded_lesson_notes ln
+       LEFT JOIN uploaded_worksheets w ON w.lesson_note_id = ln.id
+       GROUP BY ln.id
+       ORDER BY ln.created_at DESC, ln.id DESC`
+    );
+
+    res.json({ lessonNotes: result.rows });
+  } catch (error) {
+    console.error('Lesson notes fetch error:', error);
+    res.status(500).json({ error: 'Failed to load lesson notes.' });
+  }
+});
+
+app.get('/api/lesson-notes/:id/file', requireAuth, async (req, res) => {
+  try {
+    const lessonNoteId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(lessonNoteId) || lessonNoteId <= 0) {
+      return res.status(400).json({ error: 'Invalid lesson note ID.' });
+    }
+
+    const result = await pool.query(
+      `SELECT source_file_data, source_file_name, source_file_mime
+       FROM uploaded_lesson_notes
+       WHERE id = $1`,
+      [lessonNoteId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Lesson note not found.' });
+    }
+
+    const row = result.rows[0];
+    if (!row.source_file_data) {
+      return res.status(404).json({ error: 'No lesson note file is stored for this record.' });
+    }
+
+    const mime = row.source_file_mime || 'application/octet-stream';
+    const fileName = row.source_file_name || `lesson-note-${lessonNoteId}`;
+    const download = String(req.query.download || '').toLowerCase() === '1';
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
+    res.send(row.source_file_data);
+  } catch (error) {
+    console.error('Lesson note file fetch error:', error);
+    res.status(500).json({ error: 'Failed to load lesson note file.' });
   }
 });
 

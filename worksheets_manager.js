@@ -36,8 +36,11 @@ function esc(str) {
 
 const form = document.getElementById('worksheetUploadForm');
 const uploadBtn = document.getElementById('uploadWorksheetBtn');
+const lessonNoteForm = document.getElementById('lessonNoteUploadForm');
+const uploadLessonNoteBtn = document.getElementById('uploadLessonNoteBtn');
 const alertBox = document.getElementById('worksheetUploadAlert');
 const worksheetListBody = document.getElementById('worksheetListBody');
+const lessonNotesListBody = document.getElementById('lessonNotesListBody');
 let canManageWorksheets = false;
 
 function setAlert(type, message) {
@@ -56,22 +59,61 @@ function formatDate(value) {
 
 function renderWorksheetRows(items) {
   if (!Array.isArray(items) || !items.length) {
-    worksheetListBody.innerHTML = '<tr><td colspan="6" class="planner-empty">No worksheets uploaded yet.</td></tr>';
+    worksheetListBody.innerHTML = '<tr><td colspan="8" class="planner-empty">No worksheets uploaded yet.</td></tr>';
     return;
   }
 
   worksheetListBody.innerHTML = items.map(item => {
     const reviewHref = `/api/worksheets/${encodeURIComponent(item.id)}/file`;
+    const strandLabel = item.strand_number
+      ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
+      : (item.strand_title || '-');
+    const linkedLessonHref = item.lesson_note_id ? `/api/lesson-notes/${encodeURIComponent(item.lesson_note_id)}/file` : null;
+    const linkedLesson = item.lesson_note_title
+      ? (linkedLessonHref
+        ? `<a href="${linkedLessonHref}" target="_blank" rel="noopener">${esc(item.lesson_note_title)}</a>`
+        : esc(item.lesson_note_title))
+      : '-';
     return `
       <tr>
         <td>${esc(item.worksheet_title || 'Untitled')}</td>
         <td>${esc(item.year_level || 'Not set')}</td>
+        <td>${esc(strandLabel)}</td>
         <td>${esc(item.worksheet_category || 'Uncategorized')}</td>
+        <td>${linkedLesson}</td>
         <td>${esc(item.file_name || 'Unknown file')}</td>
         <td>${esc(formatDate(item.created_at))}</td>
         <td>
           <a class="btn btn-secondary btn-sm" href="${reviewHref}" target="_blank" rel="noopener">Review</a>
         </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderLessonNoteRows(items) {
+  if (!Array.isArray(items) || !items.length) {
+    lessonNotesListBody.innerHTML = '<tr><td colspan="6" class="planner-empty">No lesson notes uploaded yet.</td></tr>';
+    return;
+  }
+
+  lessonNotesListBody.innerHTML = items.map(item => {
+    const strandLabel = item.strand_number
+      ? `Strand ${item.strand_number}${item.strand_title ? ` - ${item.strand_title}` : ''}`
+      : (item.strand_title || '-');
+    const hasFile = Boolean(item.source_file_name);
+    const reviewAction = hasFile
+      ? `<a class="btn btn-secondary btn-sm" href="/api/lesson-notes/${encodeURIComponent(item.id)}/file" target="_blank" rel="noopener">Review</a>`
+      : '<span class="topic-empty">No file</span>';
+
+    return `
+      <tr>
+        <td>${esc(item.lesson_note_title || 'Untitled')}</td>
+        <td>${esc(item.year_level || 'Not set')}</td>
+        <td>${esc(strandLabel)}</td>
+        <td>${esc(String(item.linked_worksheet_count ?? 0))}</td>
+        <td>${esc(formatDate(item.created_at))}</td>
+        <td>${reviewAction}</td>
       </tr>
     `;
   }).join('');
@@ -88,7 +130,22 @@ async function loadWorksheets() {
 
     renderWorksheetRows(Array.isArray(json.worksheets) ? json.worksheets : []);
   } catch (error) {
-    worksheetListBody.innerHTML = `<tr><td colspan="6" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
+    worksheetListBody.innerHTML = `<tr><td colspan="8" class="planner-empty">${esc(error.message || 'Failed to load worksheets.')}</td></tr>`;
+  }
+}
+
+async function loadLessonNotes() {
+  try {
+    const res = await fetch('/api/lesson-notes', { cache: 'no-store' });
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json.error || 'Failed to load lesson notes.');
+    }
+
+    renderLessonNoteRows(Array.isArray(json.lessonNotes) ? json.lessonNotes : []);
+  } catch (error) {
+    lessonNotesListBody.innerHTML = `<tr><td colspan="6" class="planner-empty">${esc(error.message || 'Failed to load lesson notes.')}</td></tr>`;
   }
 }
 
@@ -96,6 +153,10 @@ function validateForm() {
   const fileInput = document.getElementById('worksheetFile');
   const hasFiles = fileInput.files && fileInput.files.length > 0;
   uploadBtn.disabled = !canManageWorksheets || !hasFiles;
+
+  const lessonNoteFileInput = document.getElementById('lessonNoteFile');
+  const lessonNoteHasFile = lessonNoteFileInput.files && lessonNoteFileInput.files.length > 0;
+  uploadLessonNoteBtn.disabled = !canManageWorksheets || !lessonNoteHasFile;
 }
 
 async function hydrateUserState() {
@@ -204,8 +265,58 @@ form.addEventListener('submit', async (event) => {
     document.getElementById('worksheetYearLevel').value = 'Junior';
     document.getElementById('worksheetCategory').value = 'Auto-detect';
     await loadWorksheets();
+    await loadLessonNotes();
   } catch (error) {
     setAlert('error', error.message || 'Failed to upload worksheet.');
+  } finally {
+    validateForm();
+  }
+});
+
+lessonNoteForm.addEventListener('change', () => {
+  const fileInput = document.getElementById('lessonNoteFile');
+  const titleInput = document.getElementById('lessonNoteTitle');
+  const file = fileInput.files && fileInput.files.length === 1 ? fileInput.files[0] : null;
+
+  if (file && !titleInput.value.trim()) {
+    titleInput.value = String(file.name || '').replace(/\.[^.]+$/, '');
+  }
+
+  validateForm();
+});
+
+lessonNoteForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const fileInput = document.getElementById('lessonNoteFile');
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) {
+    setAlert('error', 'Please choose a lesson note file.');
+    return;
+  }
+
+  uploadLessonNoteBtn.disabled = true;
+  setAlert('saving', 'Uploading lesson note...');
+
+  try {
+    const data = new FormData(lessonNoteForm);
+    const response = await fetch('/api/lesson-notes/upload', {
+      method: 'POST',
+      body: data,
+    });
+
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(json.error || 'Failed to upload lesson note.');
+    }
+
+    setAlert('success', `Uploaded lesson note: ${json.lessonNote.lesson_note_title}.`);
+    lessonNoteForm.reset();
+    document.getElementById('lessonNoteYearLevel').value = 'Junior';
+    await loadLessonNotes();
+    await loadWorksheets();
+  } catch (error) {
+    setAlert('error', error.message || 'Failed to upload lesson note.');
   } finally {
     validateForm();
   }
@@ -214,4 +325,5 @@ form.addEventListener('submit', async (event) => {
 wireDropdowns();
 hydrateUserState();
 loadWorksheets();
+loadLessonNotes();
 validateForm();
