@@ -328,17 +328,31 @@ if (!appDatabaseUrl) {
 const siteUrl = process.env.SITE_URL || '';
 const callbackUrl = process.env.CALLBACK_URL || '';
 const isSecureDeployment = /^https:\/\//i.test(siteUrl) || /^https:\/\//i.test(callbackUrl);
-const sessionSecret = String(process.env.SESSION_SECRET || '');
-if (sessionSecret.length < 32) {
-  throw new Error('SESSION_SECRET must be configured and at least 32 characters long.');
+const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+const configuredSessionSecret = String(process.env.SESSION_SECRET || '');
+const sessionSecret = configuredSessionSecret.length >= 32
+  ? configuredSessionSecret
+  : crypto.randomBytes(48).toString('hex');
+
+if (configuredSessionSecret.length < 32) {
+  const note = isProduction
+    ? 'Using a temporary generated secret in production; sessions will reset on restart. Set SESSION_SECRET (32+ chars).'
+    : 'Using a temporary generated secret. Set SESSION_SECRET (32+ chars) for stable sessions.';
+  console.warn(note);
 }
+
 const configuredAllowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || '')
   .split(',')
   .map(domain => domain.trim().toLowerCase())
   .filter(Boolean);
-const allowedEmailDomains = new Set(configuredAllowedDomains);
-if (allowedEmailDomains.size === 0) {
-  throw new Error('ALLOWED_EMAIL_DOMAINS must be explicitly configured (comma-separated).');
+const fallbackAllowedDomain = ((process.env.EMAIL_USER || '').split('@')[1] || '').trim().toLowerCase();
+const allowedEmailDomains = new Set(configuredAllowedDomains.length ? configuredAllowedDomains : (fallbackAllowedDomain ? [fallbackAllowedDomain] : []));
+if (configuredAllowedDomains.length === 0) {
+  if (fallbackAllowedDomain) {
+    console.warn(`ALLOWED_EMAIL_DOMAINS not set; falling back to EMAIL_USER domain: ${fallbackAllowedDomain}`);
+  } else {
+    console.warn('ALLOWED_EMAIL_DOMAINS not set and EMAIL_USER fallback unavailable. Domain restriction is disabled.');
+  }
 }
 
 // Neon database connection
@@ -370,13 +384,22 @@ const ROLE_SLUG_TO_TITLE = Object.fromEntries(
 function buildOAuthCallbackUrl(req) {
   const configured = String(callbackUrl || siteUrl || '').trim();
   if (!configured) {
-    throw new Error('Set CALLBACK_URL or SITE_URL for OAuth callback routing.');
+    if (req && req.get('host')) {
+      return `${req.protocol}://${req.get('host')}/auth/callback`;
+    }
+
+    const localFallback = `http://localhost:${PORT}/auth/callback`;
+    console.warn(`CALLBACK_URL/SITE_URL not set. Falling back to ${localFallback}`);
+    return localFallback;
   }
 
   let parsed;
   try {
     parsed = new URL(configured);
   } catch {
+    if (req && req.get('host')) {
+      return `${req.protocol}://${req.get('host')}/auth/callback`;
+    }
     throw new Error('CALLBACK_URL or SITE_URL must be a valid absolute URL.');
   }
 
