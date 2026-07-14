@@ -12,25 +12,55 @@ const JSZip = require('jszip');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 
-// Nodemailer transporter — uses EMAIL_USER + EMAIL_PASS from .env
-// Set EMAIL_USER to your Gmail address and EMAIL_PASS to a Gmail App Password
-const mailer = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+// Email transport config:
+// 1) Prefer explicit SMTP_* vars (Render settings)
+// 2) Fallback to legacy EMAIL_USER/EMAIL_PASS Gmail transport
+const smtpHost = String(process.env.SMTP_HOST || '').trim();
+const smtpUser = String(process.env.SMTP_USER || '').trim();
+const smtpPass = String(process.env.SMTP_PASS || '').trim();
+const smtpFrom = String(process.env.SMTP_FROM || '').trim();
+const smtpPortParsed = Number.parseInt(String(process.env.SMTP_PORT || '').trim(), 10);
+const smtpPort = Number.isInteger(smtpPortParsed) ? smtpPortParsed : 587;
+const smtpSecure = ['1', 'true', 'yes', 'on'].includes(String(process.env.SMTP_SECURE || '').trim().toLowerCase());
+const smtpConnectionTimeoutParsed = Number.parseInt(String(process.env.SMTP_CONNECTION_TIMEOUT || '').trim(), 10);
+const smtpGreetingTimeoutParsed = Number.parseInt(String(process.env.SMTP_GREETING_TIMEOUT || '').trim(), 10);
+const smtpSocketTimeoutParsed = Number.parseInt(String(process.env.SMTP_SOCKET_TIMEOUT || '').trim(), 10);
 
-const hasMailerConfig = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+const emailUser = String(process.env.EMAIL_USER || '').trim();
+const emailPass = String(process.env.EMAIL_PASS || '').trim();
+
+const useSmtpTransport = Boolean(smtpHost && smtpUser && smtpPass);
+
+const transportOptions = useSmtpTransport
+  ? {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: { user: smtpUser, pass: smtpPass },
+      ...(Number.isInteger(smtpConnectionTimeoutParsed) ? { connectionTimeout: smtpConnectionTimeoutParsed } : {}),
+      ...(Number.isInteger(smtpGreetingTimeoutParsed) ? { greetingTimeout: smtpGreetingTimeoutParsed } : {}),
+      ...(Number.isInteger(smtpSocketTimeoutParsed) ? { socketTimeout: smtpSocketTimeoutParsed } : {}),
+    }
+  : (emailUser && emailPass
+      ? {
+          service: 'gmail',
+          auth: { user: emailUser, pass: emailPass },
+        }
+      : null);
+
+const mailer = transportOptions ? nodemailer.createTransport(transportOptions) : null;
+const hasMailerConfig = Boolean(mailer);
+const mailerPrimaryAddress = smtpUser || emailUser || '';
+const mailerFromAddress = smtpFrom || mailerPrimaryAddress;
+
 if (hasMailerConfig) {
   mailer.verify().then(() => {
-    console.log('Email transporter is ready.');
+    console.log(`Email transporter is ready (${useSmtpTransport ? 'SMTP' : 'Gmail legacy'} mode).`);
   }).catch((error) => {
     console.error('Email transporter verification failed:', error.message);
   });
 } else {
-  console.warn('Email transporter is not fully configured. Set EMAIL_USER and EMAIL_PASS.');
+  console.warn('Email transporter is not fully configured. Set SMTP_HOST/SMTP_USER/SMTP_PASS (preferred) or EMAIL_USER/EMAIL_PASS.');
 }
 
 function escapeHtml(value) {
@@ -339,7 +369,7 @@ const configuredAllowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || '')
   .split(',')
   .map(domain => domain.trim().toLowerCase())
   .filter(Boolean);
-const fallbackAllowedDomain = ((process.env.EMAIL_USER || '').split('@')[1] || '').trim().toLowerCase();
+const fallbackAllowedDomain = ((mailerPrimaryAddress || '').split('@')[1] || '').trim().toLowerCase();
 const allowedEmailDomains = new Set(
   configuredAllowedDomains.length
     ? configuredAllowedDomains
@@ -2457,6 +2487,11 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
       );
       if (adminRes.rows.length && hasMailerConfig) {
         const bccList = adminRes.rows.map(r => String(r.email || '').trim()).filter(Boolean);
+        const toAddress = isValidEmail(mailerPrimaryAddress) ? mailerPrimaryAddress : (bccList[0] || '');
+        const fromAddress = isValidEmail(mailerFromAddress) ? mailerFromAddress : toAddress;
+        if (!isValidEmail(toAddress) || !isValidEmail(fromAddress)) {
+          throw new Error('SMTP sender or recipient address is invalid. Check SMTP_USER/SMTP_FROM (or EMAIL_USER).');
+        }
         const submittedAt = insertResult.rows[0].submitted_at;
         const dateStr = new Date(submittedAt).toISOString().slice(0, 10);
         const siteUrl = process.env.SITE_URL || 'https://tech-wworkshop.onrender.com';
@@ -2499,8 +2534,8 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
 </div>`;
 
         await mailer.sendMail({
-          from: `"Workshop Hub" <${process.env.EMAIL_USER}>`,
-          to: process.env.EMAIL_USER,
+          from: `"Workshop Hub" <${fromAddress}>`,
+          to: toAddress,
           bcc: bccList,
           subject: `[Activity Suggestion] ${activity_name.trim()}`,
           html: htmlBody
