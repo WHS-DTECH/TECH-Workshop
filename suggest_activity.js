@@ -121,7 +121,13 @@ form.addEventListener('submit', async e => {
     const res = await fetch('/api/suggest-activity', { method: 'POST', body: data });
     const json = await res.json();
     if (res.ok && json.success) {
-      setStatus('success', '✅ Suggestion sent! Thank you.');
+      if (json.emailNotificationSent === true) {
+        setStatus('success', '✅ Suggestion saved and email notification sent to Admin/Lead Teacher.');
+      } else if (json.emailNotificationSent === false) {
+        setStatus('warning', '⚠ Suggestion saved, but email notification could not be sent right now. Admin can still view it in Activity Suggestions.');
+      } else {
+        setStatus('success', '✅ Suggestion saved successfully.');
+      }
       form.reset();
       if (fileLabel) { fileLabel.textContent = 'Max 10 MB'; }
       if (dropZone) dropZone.classList.remove('has-file');
