@@ -124,7 +124,8 @@ form.addEventListener('submit', async e => {
       if (json.emailNotificationSent === true) {
         setStatus('success', '✅ Suggestion saved and email notification sent to Admin/Lead Teacher.');
       } else if (json.emailNotificationSent === false) {
-        setStatus('warning', '⚠ Suggestion saved, but email notification could not be sent right now. Admin can still view it in Activity Suggestions.');
+        const reason = json.emailNotificationError ? ` Reason: ${json.emailNotificationError}` : '';
+        setStatus('warning', `⚠ Suggestion saved, but email notification could not be sent right now.${reason} Admin can still view it in Activity Suggestions.`);
       } else {
         setStatus('success', '✅ Suggestion saved successfully.');
       }

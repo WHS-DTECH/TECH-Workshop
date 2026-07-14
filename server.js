@@ -2477,6 +2477,7 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
     );
 
     let emailNotificationSent = false;
+    let emailNotificationError = null;
 
     // Send notification email to all Admins and Lead Teachers
     try {
@@ -2545,9 +2546,10 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
     } catch (emailErr) {
       // Don't fail the request if email fails — just log it
       console.error('Email notification failed:', emailErr.message);
+      emailNotificationError = String(emailErr && emailErr.message ? emailErr.message : 'Unknown email transport error');
     }
 
-    res.json({ success: true, emailNotificationSent });
+    res.json({ success: true, emailNotificationSent, emailNotificationError });
   } catch (e) {
     console.error('Suggestion error:', e);
     res.status(500).json({ error: 'Failed to save suggestion.' });
