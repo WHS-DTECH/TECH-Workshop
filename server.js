@@ -328,31 +328,25 @@ if (!appDatabaseUrl) {
 const siteUrl = process.env.SITE_URL || '';
 const callbackUrl = process.env.CALLBACK_URL || '';
 const isSecureDeployment = /^https:\/\//i.test(siteUrl) || /^https:\/\//i.test(callbackUrl);
-const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
 const configuredSessionSecret = String(process.env.SESSION_SECRET || '');
 const sessionSecret = configuredSessionSecret.length >= 32
   ? configuredSessionSecret
   : crypto.randomBytes(48).toString('hex');
-
 if (configuredSessionSecret.length < 32) {
-  const note = isProduction
-    ? 'Using a temporary generated secret in production; sessions will reset on restart. Set SESSION_SECRET (32+ chars).'
-    : 'Using a temporary generated secret. Set SESSION_SECRET (32+ chars) for stable sessions.';
-  console.warn(note);
+  console.warn('SESSION_SECRET is missing or shorter than 32 chars. Using a temporary runtime secret. Set SESSION_SECRET to a strong value to keep sessions stable across restarts.');
 }
-
 const configuredAllowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || '')
   .split(',')
   .map(domain => domain.trim().toLowerCase())
   .filter(Boolean);
 const fallbackAllowedDomain = ((process.env.EMAIL_USER || '').split('@')[1] || '').trim().toLowerCase();
-const allowedEmailDomains = new Set(configuredAllowedDomains.length ? configuredAllowedDomains : (fallbackAllowedDomain ? [fallbackAllowedDomain] : []));
-if (configuredAllowedDomains.length === 0) {
-  if (fallbackAllowedDomain) {
-    console.warn(`ALLOWED_EMAIL_DOMAINS not set; falling back to EMAIL_USER domain: ${fallbackAllowedDomain}`);
-  } else {
-    console.warn('ALLOWED_EMAIL_DOMAINS not set and EMAIL_USER fallback unavailable. Domain restriction is disabled.');
-  }
+const allowedEmailDomains = new Set(
+  configuredAllowedDomains.length
+    ? configuredAllowedDomains
+    : (fallbackAllowedDomain ? [fallbackAllowedDomain] : [])
+);
+if (allowedEmailDomains.size === 0) {
+  console.warn('ALLOWED_EMAIL_DOMAINS is not set and EMAIL_USER domain fallback is unavailable. Domain allowlist check is disabled. Set ALLOWED_EMAIL_DOMAINS for stricter sign-in control.');
 }
 
 // Neon database connection
@@ -384,22 +378,13 @@ const ROLE_SLUG_TO_TITLE = Object.fromEntries(
 function buildOAuthCallbackUrl(req) {
   const configured = String(callbackUrl || siteUrl || '').trim();
   if (!configured) {
-    if (req && req.get('host')) {
-      return `${req.protocol}://${req.get('host')}/auth/callback`;
-    }
-
-    const localFallback = `http://localhost:${PORT}/auth/callback`;
-    console.warn(`CALLBACK_URL/SITE_URL not set. Falling back to ${localFallback}`);
-    return localFallback;
+    throw new Error('Set CALLBACK_URL or SITE_URL for OAuth callback routing.');
   }
 
   let parsed;
   try {
     parsed = new URL(configured);
   } catch {
-    if (req && req.get('host')) {
-      return `${req.protocol}://${req.get('host')}/auth/callback`;
-    }
     throw new Error('CALLBACK_URL or SITE_URL must be a valid absolute URL.');
   }
 
