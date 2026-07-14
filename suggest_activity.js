@@ -100,6 +100,12 @@ form.addEventListener('submit', async e => {
     return;
   }
 
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(email)) {
+    setStatus('error', 'Please enter a valid email address.');
+    return;
+  }
+
   // Validate PDF size
   const pdf = fileInput.files[0];
   if (pdf && pdf.size > 10 * 1024 * 1024) {

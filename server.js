@@ -21,6 +21,43 @@ const mailer = nodemailer.createTransport({
   }
 });
 
+const hasMailerConfig = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+if (hasMailerConfig) {
+  mailer.verify().then(() => {
+    console.log('Email transporter is ready.');
+  }).catch((error) => {
+    console.error('Email transporter verification failed:', error.message);
+  });
+} else {
+  console.warn('Email transporter is not fully configured. Set EMAIL_USER and EMAIL_PASS.');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function isValidEmail(value) {
+  const email = String(value || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function normaliseHttpUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 // Multer — memory storage (keeps PDF in RAM, stores in DB as buffer)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -2346,13 +2383,26 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
     if (!name || !email || !activity_name) {
       return res.status(400).json({ error: 'Name, email, and activity name are required.' });
     }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+
+    const normalizedActivityUrl = activity_url?.trim()
+      ? normaliseHttpUrl(activity_url)
+      : null;
+    if (activity_url?.trim() && !normalizedActivityUrl) {
+      return res.status(400).json({ error: 'Activity URL must be a valid http/https address.' });
+    }
+
     const pdfData = req.file ? req.file.buffer : null;
     const pdfFilename = req.file ? req.file.originalname : null;
     const insertResult = await pool.query(
       `INSERT INTO activity_suggestions (submitter_name, submitter_email, activity_name, activity_url, reason, pdf_data, pdf_filename)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, submitted_at`,
-      [name.trim(), email.trim(), activity_name.trim(), activity_url?.trim() || null, reason?.trim() || null, pdfData, pdfFilename]
+      [name.trim(), email.trim(), activity_name.trim(), normalizedActivityUrl, reason?.trim() || null, pdfData, pdfFilename]
     );
+
+    let emailNotificationSent = false;
 
     // Send notification email to all Admins and Lead Teachers
     try {
@@ -2361,12 +2411,22 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
          JOIN user_roles ur ON ur.user_id = u.id
          WHERE ur.role IN ('Admin', 'Lead Teacher') AND u.email IS NOT NULL`
       );
-      if (adminRes.rows.length && process.env.EMAIL_USER) {
-        const toList = adminRes.rows.map(r => r.email).join(', ');
+      if (adminRes.rows.length && hasMailerConfig) {
+        const bccList = adminRes.rows.map(r => String(r.email || '').trim()).filter(Boolean);
         const submittedAt = insertResult.rows[0].submitted_at;
         const dateStr = new Date(submittedAt).toISOString().slice(0, 10);
         const siteUrl = process.env.SITE_URL || 'https://tech-wworkshop.onrender.com';
-        const urlCell = activity_url?.trim() ? activity_url.trim() : 'N/A';
+        const safeName = escapeHtml(name.trim());
+        const safeEmail = escapeHtml(email.trim());
+        const safeActivityName = escapeHtml(activity_name.trim());
+        const safePdfFilename = pdfFilename ? escapeHtml(pdfFilename) : null;
+        const safeReason = reason?.trim() ? escapeHtml(reason.trim()) : '';
+        const safeSiteUrl = escapeHtml(siteUrl);
+        const safeSuggestionsUrl = `${siteUrl}/admin_suggestions.html`;
+        const safeSuggestionsUrlEscaped = escapeHtml(safeSuggestionsUrl);
+        const safeUrlCell = normalizedActivityUrl
+          ? `<a href="${escapeHtml(normalizedActivityUrl)}" style="color:#1c74b9">${escapeHtml(normalizedActivityUrl)}</a>`
+          : 'N/A';
 
         const htmlBody = `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
@@ -2378,36 +2438,37 @@ app.post('/api/suggest-activity', upload.single('pdf'), async (req, res) => {
     <p style="color:#444;margin:0 0 18px">A new suggestion has been submitted for review.</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff;width:130px">Date</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${dateStr}</td></tr>
-      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Activity</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${activity_name.trim()}</td></tr>
-      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">Suggested By</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${name.trim()}</td></tr>
-      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Email</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff"><a href="mailto:${email.trim()}" style="color:#1c74b9">${email.trim()}</a></td></tr>
-      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">URL</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${urlCell}</td></tr>
-      ${pdfFilename ? `<tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">PDF</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${pdfFilename} <em style="color:#888">(download from Suggestions page)</em></td></tr>` : ''}
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Activity</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${safeActivityName}</td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">Suggested By</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${safeName}</td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">Email</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff"><a href="mailto:${safeEmail}" style="color:#1c74b9">${safeEmail}</a></td></tr>
+      <tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fff">URL</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fff">${safeUrlCell}</td></tr>
+      ${safePdfFilename ? `<tr><td style="padding:9px 12px;border:1px solid #e0e8f0;font-weight:700;background:#fafcff">PDF</td><td style="padding:9px 12px;border:1px solid #e0e8f0;background:#fafcff">${safePdfFilename} <em style="color:#888">(download from Suggestions page)</em></td></tr>` : ''}
     </table>
-    ${reason?.trim() ? `
+    ${safeReason ? `
     <p style="font-weight:700;color:#1a2a3a;margin:18px 0 6px">Reason</p>
-    <div style="background:#fff;border:1px solid #e0e8f0;border-radius:6px;padding:12px 14px;color:#444;font-size:14px">${reason.trim()}</div>` : ''}
+    <div style="background:#fff;border:1px solid #e0e8f0;border-radius:6px;padding:12px 14px;color:#444;font-size:14px">${safeReason}</div>` : ''}
     <div style="margin-top:24px">
-      <a href="${siteUrl}/admin_suggestions.html" style="display:inline-block;background:#1c74b9;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:700;font-size:14px">Open Suggestions List</a>
+      <a href="${safeSuggestionsUrlEscaped}" style="display:inline-block;background:#1c74b9;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:700;font-size:14px">Open Suggestions List</a>
     </div>
-    <p style="margin:14px 0 0;font-size:12px;color:#888">Direct link: <a href="${siteUrl}/admin_suggestions.html" style="color:#1c74b9">${siteUrl}/admin_suggestions.html</a></p>
+    <p style="margin:14px 0 0;font-size:12px;color:#888">Direct link: <a href="${safeSuggestionsUrlEscaped}" style="color:#1c74b9">${safeSuggestionsUrlEscaped}</a></p>
   </div>
 </div>`;
 
         await mailer.sendMail({
           from: `"Workshop Hub" <${process.env.EMAIL_USER}>`,
-          to: toList,
+          to: process.env.EMAIL_USER,
+          bcc: bccList,
           subject: `[Activity Suggestion] ${activity_name.trim()}`,
-          html: htmlBody,
-          attachments: pdfData ? [{ filename: pdfFilename, content: pdfData }] : []
+          html: htmlBody
         });
+        emailNotificationSent = true;
       }
     } catch (emailErr) {
       // Don't fail the request if email fails — just log it
       console.error('Email notification failed:', emailErr.message);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, emailNotificationSent });
   } catch (e) {
     console.error('Suggestion error:', e);
     res.status(500).json({ error: 'Failed to save suggestion.' });
