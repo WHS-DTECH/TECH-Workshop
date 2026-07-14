@@ -10,6 +10,7 @@ const path = require('path');
 const multer = require('multer');
 const JSZip = require('jszip');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 // Nodemailer transporter — uses EMAIL_USER + EMAIL_PASS from .env
 // Set EMAIL_USER to your Gmail address and EMAIL_PASS to a Gmail App Password
@@ -327,12 +328,18 @@ if (!appDatabaseUrl) {
 const siteUrl = process.env.SITE_URL || '';
 const callbackUrl = process.env.CALLBACK_URL || '';
 const isSecureDeployment = /^https:\/\//i.test(siteUrl) || /^https:\/\//i.test(callbackUrl);
+const sessionSecret = String(process.env.SESSION_SECRET || '');
+if (sessionSecret.length < 32) {
+  throw new Error('SESSION_SECRET must be configured and at least 32 characters long.');
+}
 const configuredAllowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || '')
   .split(',')
   .map(domain => domain.trim().toLowerCase())
   .filter(Boolean);
-const fallbackAllowedDomain = ((process.env.EMAIL_USER || '').split('@')[1] || '').trim().toLowerCase();
-const allowedEmailDomains = new Set(configuredAllowedDomains.length ? configuredAllowedDomains : (fallbackAllowedDomain ? [fallbackAllowedDomain] : []));
+const allowedEmailDomains = new Set(configuredAllowedDomains);
+if (allowedEmailDomains.size === 0) {
+  throw new Error('ALLOWED_EMAIL_DOMAINS must be explicitly configured (comma-separated).');
+}
 
 // Neon database connection
 const pool = new Pool({
@@ -361,23 +368,31 @@ const ROLE_SLUG_TO_TITLE = Object.fromEntries(
 );
 
 function buildOAuthCallbackUrl(req) {
-  // Prefer explicit env callback, but normalize to the active host to avoid
-  // session/state mismatches when multiple domains are used.
-  const configured = String(process.env.CALLBACK_URL || '').trim();
-  const activeOrigin = `${req.protocol}://${req.get('host')}`;
-
+  const configured = String(callbackUrl || siteUrl || '').trim();
   if (!configured) {
-    return `${activeOrigin}/auth/callback`;
+    throw new Error('Set CALLBACK_URL or SITE_URL for OAuth callback routing.');
   }
 
+  let parsed;
   try {
-    const parsed = new URL(configured);
-    parsed.protocol = req.protocol;
-    parsed.host = req.get('host');
-    return parsed.toString();
+    parsed = new URL(configured);
   } catch {
-    return `${activeOrigin}/auth/callback`;
+    throw new Error('CALLBACK_URL or SITE_URL must be a valid absolute URL.');
   }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('CALLBACK_URL or SITE_URL must use http or https.');
+  }
+
+  return `${parsed.protocol}//${parsed.host}/auth/callback`;
+}
+
+function ensureSessionCsrfToken(req) {
+  if (!req.session) return null;
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(24).toString('hex');
+  }
+  return req.session.csrfToken;
 }
 
 function toRoleTitle(slugOrTitle) {
@@ -645,7 +660,7 @@ app.use(express.static(path.join(__dirname)));
 // Session stored in Neon database
 app.use(session({
   store: new pgSession({ pool: sessionPool, tableName: 'session' }),
-  secret: process.env.SESSION_SECRET,
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -663,7 +678,7 @@ app.use(passport.session());
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: process.env.CALLBACK_URL,
+  callbackURL: buildOAuthCallbackUrl(),
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const googleId = profile.id;
@@ -767,13 +782,14 @@ async function requireAdminOrLead(req, res, next) {
 app.get('/auth/google', (req, res, next) => {
   const { returnTo } = req.query;
   // Only allow internal relative paths to prevent open redirects
-  if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
+  if (typeof returnTo === 'string' && /^\/(?!\/)/.test(returnTo)) {
     req.session.returnTo = returnTo;
   }
+  ensureSessionCsrfToken(req);
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     state: true,
-    callbackURL: buildOAuthCallbackUrl(req),
+    callbackURL: buildOAuthCallbackUrl(),
     hd: allowedEmailDomains.size === 1 ? [...allowedEmailDomains][0] : undefined,
   })(req, res, next);
 });
@@ -783,7 +799,7 @@ app.get('/auth/callback',
   (req, res, next) => {
     passport.authenticate('google', {
       failureRedirect: '/?error=auth_failed',
-      callbackURL: buildOAuthCallbackUrl(req),
+      callbackURL: buildOAuthCallbackUrl(),
     })(req, res, next);
   },
   (req, res) => {
@@ -802,16 +818,36 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Logout
+// Logout requires POST + CSRF token.
+app.post('/auth/logout', requireAuth, (req, res) => {
+  const expectedToken = ensureSessionCsrfToken(req);
+  const providedToken = String(req.get('x-csrf-token') || req.body?.csrfToken || '').trim();
+
+  if (!providedToken || providedToken !== expectedToken) {
+    return res.status(403).json({ error: 'Invalid CSRF token.' });
+  }
+
+  req.logout((logoutError) => {
+    if (logoutError) {
+      return res.status(500).json({ error: 'Failed to log out.' });
+    }
+
+    req.session.destroy(() => {
+      res.clearCookie('connect.sid');
+      res.json({ success: true });
+    });
+  });
+});
+
 app.get('/auth/logout', (req, res) => {
-  req.logout(() => res.redirect('/'));
+  res.status(405).json({ error: 'Use POST /auth/logout' });
 });
 
 // Get current logged-in user (used by frontend)
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
     const { id, name, email, picture } = req.user;
-    res.json({ id, name, email, picture });
+    res.json({ id, name, email, picture, csrfToken: ensureSessionCsrfToken(req) });
   } else {
     res.json(null);
   }

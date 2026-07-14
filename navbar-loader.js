@@ -60,6 +60,33 @@ async function hydrateUserState() {
     const initialsEl = document.getElementById('userInitials');
     if (initialsEl) initialsEl.textContent = getInitials(user.name);
 
+    const logoutButton = document.getElementById('logoutButton');
+    if (logoutButton && user.csrfToken && !logoutButton.dataset.bound) {
+      logoutButton.dataset.bound = '1';
+      logoutButton.addEventListener('click', async () => {
+        logoutButton.disabled = true;
+        try {
+          const response = await fetch('/auth/logout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': user.csrfToken,
+            },
+            body: JSON.stringify({}),
+          });
+
+          if (!response.ok) {
+            throw new Error('Sign out failed');
+          }
+
+          window.location.href = '/';
+        } catch (error) {
+          console.error('Logout error:', error);
+          logoutButton.disabled = false;
+        }
+      });
+    }
+
     try {
       const rolesRes = await fetch('/api/my-roles');
       const roles = await rolesRes.json();

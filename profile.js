@@ -88,6 +88,32 @@ fetch('/api/user')
       // Connection
       document.getElementById('connectionEmail').textContent = user.email || '—';
 
+      const profileSignOutBtn = document.getElementById('profileSignOutBtn');
+      if (profileSignOutBtn && user.csrfToken && !profileSignOutBtn.dataset.bound) {
+        profileSignOutBtn.dataset.bound = '1';
+        profileSignOutBtn.addEventListener('click', async () => {
+          profileSignOutBtn.disabled = true;
+          try {
+            const response = await fetch('/auth/logout', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': user.csrfToken,
+              },
+              body: JSON.stringify({}),
+            });
+
+            if (!response.ok) {
+              throw new Error('Sign out failed');
+            }
+
+            window.location.href = '/';
+          } catch {
+            profileSignOutBtn.disabled = false;
+          }
+        });
+      }
+
     } else {
       document.getElementById('notLoggedIn').style.display = 'flex';
       document.getElementById('profileContent').style.display = 'none';
